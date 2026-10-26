@@ -1,4 +1,3 @@
-
 import AppRoutes from "./routes/AppRoutes";
 
 function App() {
@@ -6,4 +5,3 @@ function App() {
 }
 
 export default App;
-

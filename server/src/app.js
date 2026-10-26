@@ -1,8 +1,10 @@
+
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 
 const authRoutes = require("./routes/auth.routes");
+const errorMiddleware = require("./middleware/error.middleware");
 
 const app = express();
 
@@ -21,22 +23,14 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  res.json({ success: true, message: "API is healthy." });
+  res.json({
+    success: true,
+    message: "API is healthy.",
+  });
 });
 
 app.use("/api/auth", authRoutes);
 
-app.use((error, req, res, next) => {
-  console.error(error);
-
-  if (res.headersSent) {
-    return next(error);
-  }
-
-  return res.status(500).json({
-    success: false,
-    message: "An unexpected server error occurred.",
-  });
-});
+app.use(errorMiddleware);
 
 module.exports = app;

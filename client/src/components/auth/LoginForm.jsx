@@ -1,16 +1,19 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
+import api from "../lib/api";
 
 function LoginForm() {
   const reduceMotion = useReducedMotion();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const entrance = {
     hidden: {
@@ -27,16 +30,60 @@ function LoginForm() {
     },
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
 
-    if (!email.trim() || !password) {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail || !password) {
       setError("Please enter your email and password.");
       return;
     }
 
-    setError("Login is not connected to the backend yet.");
+    setIsLoading(true);
+
+    try {
+      const response = await api.post("/auth/login", {
+        email: normalizedEmail,
+        password,
+      });
+
+      const { accessToken } = response.data;
+
+      if (!accessToken) {
+        throw new Error("The server did not return an access token.");
+      }
+
+      // Temporary storage until we add a shared AuthContext.
+      sessionStorage.setItem("veritest_access_token", accessToken);
+
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      const status = err.response?.status;
+
+      if (status === 400 || status === 401) {
+        setError(
+          err.response?.data?.message ||
+            "Invalid email or password."
+        );
+      } else if (err.response) {
+        setError(
+          err.response.data?.message ||
+            "Unable to sign in. Please try again."
+        );
+      } else if (err.request) {
+        setError(
+          "Cannot connect to Veritest. Please check that the server is running."
+        );
+      } else {
+        setError(
+          err.message || "Something went wrong. Please try again."
+        );
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -149,12 +196,14 @@ function LoginForm() {
             name="email"
             type="email"
             autoComplete="email"
+            required
+            disabled={isLoading}
             value={email}
             onChange={(event) => {
               setEmail(event.target.value);
               setError("");
             }}
-            className="h-10 w-full rounded-md border border-[#252b33] bg-[#111419] px-3 text-sm text-[#f1f3f5] outline-none transition focus:border-[#80e8bf] focus:ring-2 focus:ring-[#80e8bf]/10"
+            className="h-10 w-full rounded-md border border-[#252b33] bg-[#111419] px-3 text-sm text-[#f1f3f5] outline-none transition focus:border-[#80e8bf] focus:ring-2 focus:ring-[#80e8bf]/10 disabled:opacity-60"
           />
         </motion.div>
 
@@ -173,12 +222,14 @@ function LoginForm() {
               name="password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
+              required
+              disabled={isLoading}
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
                 setError("");
               }}
-              className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-[#f1f3f5] outline-none"
+              className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-[#f1f3f5] outline-none disabled:opacity-60"
             />
 
             <button
@@ -198,7 +249,7 @@ function LoginForm() {
           </div>
         </motion.div>
 
-        {/* Validation feedback */}
+        {/* Error feedback */}
         {error && (
           <motion.p
             initial={{ opacity: 0, y: reduceMotion ? 0 : -5 }}
@@ -214,11 +265,19 @@ function LoginForm() {
         <motion.div variants={entrance} className="pt-1">
           <motion.button
             type="submit"
-            whileHover={reduceMotion ? undefined : { y: -1 }}
-            whileTap={reduceMotion ? undefined : { scale: 0.99 }}
-            className="h-10 w-full rounded-md bg-[#80e8bf] px-4 text-sm font-semibold text-[#102019] transition-colors hover:bg-[#a0f2d1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#80e8bf]"
+            disabled={isLoading}
+            whileHover={
+              reduceMotion || isLoading ? undefined : { y: -1 }
+            }
+            whileTap={
+              reduceMotion || isLoading ? undefined : { scale: 0.99 }
+            }
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#80e8bf] px-4 text-sm font-semibold text-[#102019] transition-colors hover:bg-[#a0f2d1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#80e8bf] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Sign in
+            {isLoading && (
+              <LoaderCircle size={16} className="animate-spin" />
+            )}
+            {isLoading ? "Signing in..." : "Sign in"}
           </motion.button>
         </motion.div>
       </motion.form>

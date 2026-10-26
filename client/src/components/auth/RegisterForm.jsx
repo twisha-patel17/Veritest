@@ -1,11 +1,13 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
+import api from "../lib/api";
 
 function RegisterForm() {
   const reduceMotion = useReducedMotion();
+  const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -14,6 +16,7 @@ function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const entrance = {
     hidden: {
@@ -30,22 +33,35 @@ function RegisterForm() {
     },
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
 
-    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim();
+
+    if (
+      !normalizedName ||
+      !normalizedEmail ||
+      !password ||
+      !confirmPassword
+    ) {
       setError("Please fill in all fields.");
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      setError("Name must contain between 2 and 80 characters.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setError("Please enter a valid email address.");
       return;
     }
 
-    if (password.length < 8) {
-      setError("Password must contain at least 8 characters.");
+    if (password.length < 8 || password.length > 72) {
+      setError("Password must contain between 8 and 72 characters.");
       return;
     }
 
@@ -54,7 +70,52 @@ function RegisterForm() {
       return;
     }
 
-    setError("Registration is not connected to the backend yet.");
+    setIsLoading(true);
+
+    try {
+      const response = await api.post("/auth/register", {
+        name: normalizedName,
+        email: normalizedEmail,
+        password,
+      });
+
+      const { accessToken } = response.data;
+
+      if (!accessToken) {
+        throw new Error("The server did not return an access token.");
+      }
+
+      // Temporary until shared authentication state is implemented.
+      sessionStorage.setItem("veritest_access_token", accessToken);
+
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      const status = err.response?.status;
+
+      if (status === 409) {
+        setError("An account with this email already exists. Try signing in.");
+      } else if (status === 400) {
+        setError(
+          err.response?.data?.message ||
+            "Please check your details and try again."
+        );
+      } else if (err.response) {
+        setError(
+          err.response.data?.message ||
+            "Unable to create your account. Please try again."
+        );
+      } else if (err.request) {
+        setError(
+          "Cannot connect to Veritest. Please check that the server is running."
+        );
+      } else {
+        setError(
+          err.message || "Something went wrong. Please try again."
+        );
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -165,12 +226,15 @@ function RegisterForm() {
             name="name"
             type="text"
             autoComplete="name"
+            required
+            maxLength={80}
+            disabled={isLoading}
             value={name}
             onChange={(event) => {
               setName(event.target.value);
               setError("");
             }}
-            className="h-10 w-full rounded-md border border-[#252b33] bg-[#111419] px-3 text-sm text-[#f1f3f5] outline-none transition focus:border-[#80e8bf] focus:ring-2 focus:ring-[#80e8bf]/10"
+            className="h-10 w-full rounded-md border border-[#252b33] bg-[#111419] px-3 text-sm text-[#f1f3f5] outline-none transition focus:border-[#80e8bf] focus:ring-2 focus:ring-[#80e8bf]/10 disabled:opacity-60"
           />
         </motion.div>
 
@@ -188,12 +252,15 @@ function RegisterForm() {
             name="email"
             type="email"
             autoComplete="email"
+            required
+            maxLength={254}
+            disabled={isLoading}
             value={email}
             onChange={(event) => {
               setEmail(event.target.value);
               setError("");
             }}
-            className="h-10 w-full rounded-md border border-[#252b33] bg-[#111419] px-3 text-sm text-[#f1f3f5] outline-none transition focus:border-[#80e8bf] focus:ring-2 focus:ring-[#80e8bf]/10"
+            className="h-10 w-full rounded-md border border-[#252b33] bg-[#111419] px-3 text-sm text-[#f1f3f5] outline-none transition focus:border-[#80e8bf] focus:ring-2 focus:ring-[#80e8bf]/10 disabled:opacity-60"
           />
         </motion.div>
 
@@ -212,18 +279,23 @@ function RegisterForm() {
               name="password"
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
+              required
+              minLength={8}
+              maxLength={72}
+              disabled={isLoading}
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
                 setError("");
               }}
-              className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-[#f1f3f5] outline-none"
+              className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-[#f1f3f5] outline-none disabled:opacity-60"
             />
 
             <button
               type="button"
               onClick={() => setShowPassword((current) => !current)}
               aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
               className="mr-1.5 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-[#a2adbc] transition hover:text-[#80e8bf] focus-visible:outline-2 focus-visible:outline-[#80e8bf]"
             >
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -251,12 +323,14 @@ function RegisterForm() {
               name="confirmPassword"
               type={showConfirmPassword ? "text" : "password"}
               autoComplete="new-password"
+              required
+              disabled={isLoading}
               value={confirmPassword}
               onChange={(event) => {
                 setConfirmPassword(event.target.value);
                 setError("");
               }}
-              className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-[#f1f3f5] outline-none"
+              className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-[#f1f3f5] outline-none disabled:opacity-60"
             />
 
             <button
@@ -265,10 +339,9 @@ function RegisterForm() {
                 setShowConfirmPassword((current) => !current)
               }
               aria-label={
-                showConfirmPassword
-                  ? "Hide password"
-                  : "Show password"
+                showConfirmPassword ? "Hide password" : "Show password"
               }
+              aria-pressed={showConfirmPassword}
               className="mr-1.5 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-[#a2adbc] transition hover:text-[#80e8bf] focus-visible:outline-2 focus-visible:outline-[#80e8bf]"
             >
               {showConfirmPassword ? (
@@ -281,7 +354,7 @@ function RegisterForm() {
           </div>
         </motion.div>
 
-        {/* Validation feedback */}
+        {/* Error feedback */}
         {error && (
           <motion.p
             initial={{ opacity: 0, y: reduceMotion ? 0 : -5 }}
@@ -297,11 +370,19 @@ function RegisterForm() {
         <motion.div variants={entrance} className="pt-1">
           <motion.button
             type="submit"
-            whileHover={reduceMotion ? undefined : { y: -1 }}
-            whileTap={reduceMotion ? undefined : { scale: 0.99 }}
-            className="h-10 w-full rounded-md bg-[#80e8bf] px-4 text-sm font-semibold text-[#102019] transition-colors hover:bg-[#a0f2d1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#80e8bf]"
+            disabled={isLoading}
+            whileHover={
+              reduceMotion || isLoading ? undefined : { y: -1 }
+            }
+            whileTap={
+              reduceMotion || isLoading ? undefined : { scale: 0.99 }
+            }
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#80e8bf] px-4 text-sm font-semibold text-[#102019] transition-colors hover:bg-[#a0f2d1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#80e8bf] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Create account
+            {isLoading && (
+              <LoaderCircle size={16} className="animate-spin" />
+            )}
+            {isLoading ? "Creating account..." : "Create account"}
           </motion.button>
         </motion.div>
       </motion.form>
