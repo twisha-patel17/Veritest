@@ -1,20 +1,31 @@
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 
+import DashboardLayout from "../components/layouts/DashboardLayout";
+
+function CheckingSession() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#0b0d0f] text-[#80e8bf]">
+      Checking your session...
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0d0f] text-[#80e8bf]">
-        Checking your session...
-      </div>
-    );
+    return <CheckingSession />;
   }
 
   if (!isAuthenticated) {
@@ -28,11 +39,7 @@ function PublicOnlyRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0d0f] text-[#80e8bf]">
-        Checking your session...
-      </div>
-    );
+    return <CheckingSession />;
   }
 
   if (isAuthenticated) {
@@ -42,10 +49,72 @@ function PublicOnlyRoute({ children }) {
   return children;
 }
 
+// Temporary pages until we build each feature.
+function OverviewPage() {
+  return (
+    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
+      <div className="mb-1 text-xs text-[#8292aa]">
+        my-workspace / Overview
+      </div>
+
+      <h1 className="text-2xl font-semibold">Overview</h1>
+
+      <p className="mt-2 text-sm text-[#8292aa]">
+        Your testing workspace. Find the cases your code forgot.
+      </p>
+    </div>
+  );
+}
+
+function ProjectsPage() {
+  return (
+    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
+      <h1 className="text-2xl font-semibold">Projects</h1>
+      <p className="mt-2 text-sm text-[#8292aa]">
+        Your projects will appear here.
+      </p>
+    </div>
+  );
+}
+
+function TestRunsPage() {
+  return (
+    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
+      <h1 className="text-2xl font-semibold">Test runs</h1>
+      <p className="mt-2 text-sm text-[#8292aa]">
+        View and manage your test runs.
+      </p>
+    </div>
+  );
+}
+
+function FailureAnalysisPage() {
+  return (
+    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
+      <h1 className="text-2xl font-semibold">Failure analysis</h1>
+      <p className="mt-2 text-sm text-[#8292aa]">
+        Investigate reproducible failures and unexpected behavior.
+      </p>
+    </div>
+  );
+}
+
+function MutationTestingPage() {
+  return (
+    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
+      <h1 className="text-2xl font-semibold">Mutation testing</h1>
+      <p className="mt-2 text-sm text-[#8292aa]">
+        Measure whether your tests detect intentional code changes.
+      </p>
+    </div>
+  );
+}
+
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
 
         <Route
@@ -66,21 +135,43 @@ function AppRoutes() {
           }
         />
 
+        {/* Protected dashboard with shared sidebar */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <div className="min-h-screen bg-[#0b0d0f] p-8 text-[#f1f3f5]">
-                <h1 className="text-2xl font-semibold">Veritest Dashboard</h1>
-                <p className="mt-2 text-gray-400">
-                  You're authenticated. Your dashboard will go here.
-                </p>
-              </div>
+              <DashboardLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<OverviewPage />} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+          <Route
+            path="projects"
+            element={<ProjectsPage />}
+          />
+
+          <Route
+            path="test-runs"
+            element={<TestRunsPage />}
+          />
+
+          <Route
+            path="failures"
+            element={<FailureAnalysisPage />}
+          />
+
+          <Route
+            path="mutation-testing"
+            element={<MutationTestingPage />}
+          />
+        </Route>
+
+        {/* Unknown routes */}
+        <Route
+          path="*"
+          element={<Navigate to="/" replace />}
+        />
       </Routes>
     </BrowserRouter>
   );
