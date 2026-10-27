@@ -3,11 +3,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
-import api from "../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 function RegisterForm() {
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -73,31 +74,28 @@ function RegisterForm() {
     setIsLoading(true);
 
     try {
-      const response = await api.post("/auth/register", {
+      await register({
         name: normalizedName,
         email: normalizedEmail,
         password,
       });
-
-      const { accessToken } = response.data;
-
-      if (!accessToken) {
-        throw new Error("The server did not return an access token.");
-      }
-
-      // Temporary until shared authentication state is implemented.
-      sessionStorage.setItem("veritest_access_token", accessToken);
 
       navigate("/dashboard", { replace: true });
     } catch (err) {
       const status = err.response?.status;
 
       if (status === 409) {
-        setError("An account with this email already exists. Try signing in.");
+        setError(
+          "An account with this email already exists. Try signing in."
+        );
       } else if (status === 400) {
         setError(
           err.response?.data?.message ||
             "Please check your details and try again."
+        );
+      } else if (status === 429) {
+        setError(
+          "Too many attempts. Please wait a moment and try again."
         );
       } else if (err.response) {
         setError(
@@ -156,7 +154,12 @@ function RegisterForm() {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <circle cx="29.5" cy="28.5" r="4.5" fill="#0B0D0F" />
+            <circle
+              cx="29.5"
+              cy="28.5"
+              r="4.5"
+              fill="#0B0D0F"
+            />
             <path
               d="M28 27L29.5 28.5L28 30"
               stroke="#80E8BF"
@@ -227,6 +230,7 @@ function RegisterForm() {
             type="text"
             autoComplete="name"
             required
+            minLength={2}
             maxLength={80}
             disabled={isLoading}
             value={name}
@@ -293,12 +297,20 @@ function RegisterForm() {
 
             <button
               type="button"
-              onClick={() => setShowPassword((current) => !current)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() =>
+                setShowPassword((current) => !current)
+              }
+              aria-label={
+                showPassword ? "Hide password" : "Show password"
+              }
               aria-pressed={showPassword}
               className="mr-1.5 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-[#a2adbc] transition hover:text-[#80e8bf] focus-visible:outline-2 focus-visible:outline-[#80e8bf]"
             >
-              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              {showPassword ? (
+                <EyeOff size={15} />
+              ) : (
+                <Eye size={15} />
+              )}
               {showPassword ? "Hide" : "Show"}
             </button>
           </div>
@@ -375,7 +387,9 @@ function RegisterForm() {
               reduceMotion || isLoading ? undefined : { y: -1 }
             }
             whileTap={
-              reduceMotion || isLoading ? undefined : { scale: 0.99 }
+              reduceMotion || isLoading
+                ? undefined
+                : { scale: 0.99 }
             }
             className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#80e8bf] px-4 text-sm font-semibold text-[#102019] transition-colors hover:bg-[#a0f2d1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#80e8bf] disabled:cursor-not-allowed disabled:opacity-70"
           >

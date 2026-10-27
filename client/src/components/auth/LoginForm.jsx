@@ -3,11 +3,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
-import api from "../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 function LoginForm() {
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,19 +45,10 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const response = await api.post("/auth/login", {
+      await login({
         email: normalizedEmail,
         password,
       });
-
-      const { accessToken } = response.data;
-
-      if (!accessToken) {
-        throw new Error("The server did not return an access token.");
-      }
-
-      // Temporary storage until we add a shared AuthContext.
-      sessionStorage.setItem("veritest_access_token", accessToken);
 
       navigate("/dashboard", { replace: true });
     } catch (err) {
@@ -66,6 +58,10 @@ function LoginForm() {
         setError(
           err.response?.data?.message ||
             "Invalid email or password."
+        );
+      } else if (status === 429) {
+        setError(
+          "Too many attempts. Please wait a moment and try again."
         );
       } else if (err.response) {
         setError(
@@ -234,8 +230,12 @@ function LoginForm() {
 
             <button
               type="button"
-              onClick={() => setShowPassword((current) => !current)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() =>
+                setShowPassword((current) => !current)
+              }
+              aria-label={
+                showPassword ? "Hide password" : "Show password"
+              }
               aria-pressed={showPassword}
               className="mr-1.5 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-[#a2adbc] transition hover:text-[#80e8bf] focus-visible:outline-2 focus-visible:outline-[#80e8bf]"
             >
@@ -270,7 +270,9 @@ function LoginForm() {
               reduceMotion || isLoading ? undefined : { y: -1 }
             }
             whileTap={
-              reduceMotion || isLoading ? undefined : { scale: 0.99 }
+              reduceMotion || isLoading
+                ? undefined
+                : { scale: 0.99 }
             }
             className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#80e8bf] px-4 text-sm font-semibold text-[#102019] transition-colors hover:bg-[#a0f2d1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#80e8bf] disabled:cursor-not-allowed disabled:opacity-70"
           >
