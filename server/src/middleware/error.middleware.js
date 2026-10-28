@@ -1,4 +1,3 @@
-
 const errorMiddleware = (error, req, res, next) => {
   console.error("API Error:", error);
 

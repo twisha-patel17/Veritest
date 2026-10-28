@@ -10,6 +10,7 @@ import { useAuth } from "../context/AuthContext";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
+import DashboardPage from "../pages/DashboardPage";
 
 import DashboardLayout from "../components/layouts/DashboardLayout";
 
@@ -47,23 +48,6 @@ function PublicOnlyRoute({ children }) {
   }
 
   return children;
-}
-
-// Temporary pages until we build each feature.
-function OverviewPage() {
-  return (
-    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
-      <div className="mb-1 text-xs text-[#8292aa]">
-        my-workspace / Overview
-      </div>
-
-      <h1 className="text-2xl font-semibold">Overview</h1>
-
-      <p className="mt-2 text-sm text-[#8292aa]">
-        Your testing workspace. Find the cases your code forgot.
-      </p>
-    </div>
-  );
 }
 
 function ProjectsPage() {
@@ -114,7 +98,6 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
 
         <Route
@@ -135,7 +118,6 @@ function AppRoutes() {
           }
         />
 
-        {/* Protected dashboard with shared sidebar */}
         <Route
           path="/dashboard"
           element={
@@ -144,7 +126,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<OverviewPage />} />
+          <Route index element={<DashboardPage />} />
 
           <Route
             path="projects"
@@ -167,7 +149,6 @@ function AppRoutes() {
           />
         </Route>
 
-        {/* Unknown routes */}
         <Route
           path="*"
           element={<Navigate to="/" replace />}
@@ -178,4 +159,5 @@ function AppRoutes() {
 }
 
 export default AppRoutes;
+
 
