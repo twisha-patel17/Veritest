@@ -11,6 +11,7 @@ import {
   SearchCode,
   ShieldCheck,
 } from "lucide-react";
+import { motion } from "motion/react";
 
 import MetricCard from "../components/dashboard/MetricCard";
 import RecentRunsTable from "../components/dashboard/RecentRunsTable";
@@ -55,20 +56,51 @@ const METRICS = [
   },
 ];
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: "easeOut" },
+  },
+};
+
 function DashboardPage() {
   const navigate = useNavigate();
 
-  // Replace these empty arrays with real API data later.
+  // Replace these with real API data when the backend is connected.
   const recentRuns = [];
   const recentFailures = [];
 
   return (
-    <div className="min-h-full bg-[#0b0d0f] px-5 py-7 text-[#f1f3f5] sm:px-7 lg:px-9">
-      <div className="mx-auto max-w-[1500px] space-y-8">
-        {/* Page heading */}
-        <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-xs text-[#8292aa]">
+    <motion.main
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="min-h-full min-w-0 overflow-x-clip bg-[#0b0d0f] px-4 py-5 text-[#f1f3f5] sm:px-6 sm:py-7 lg:px-8 xl:px-9"
+    >
+      <div className="mx-auto w-full max-w-[1500px] space-y-6 sm:space-y-8">
+
+        {/* Header */}
+        <motion.header
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#8292aa]">
               <span>Workspace</span>
               <span>/</span>
               <span className="text-[#a3b1c7]">Overview</span>
@@ -84,88 +116,136 @@ function DashboardPage() {
             </p>
           </div>
 
-          <button
+          <motion.button
             type="button"
             onClick={() => navigate("/dashboard/projects")}
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-[#80e8bf] px-4 py-2.5 text-sm font-semibold text-[#0b0d0f] transition-colors hover:bg-[#a8f5d4] sm:self-auto"
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.97 }}
+            className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#80e8bf] px-4 py-2.5 text-sm font-semibold text-[#0b0d0f] transition-colors hover:bg-[#a8f5d4] sm:w-auto"
           >
             <FolderKanban size={16} />
             View projects
             <ArrowRight size={15} />
-          </button>
-        </header>
+          </motion.button>
+        </motion.header>
 
         {/* Data availability notice */}
-        <div className="flex items-start gap-3 rounded-lg border border-[#303640] bg-[#111419] px-4 py-3.5">
+        <motion.div
+          variants={itemVariants}
+          initial="hidden"
+          animate="visible"
+          className="flex min-w-0 items-start gap-3 rounded-lg border border-[#303640] bg-[#111419] p-3.5 sm:p-4"
+        >
           <CircleHelp
-            size={17}
+            size={18}
             className="mt-0.5 shrink-0 text-[#80e8bf]"
           />
 
-          <div>
-            <p className="text-xs font-medium text-[#dce2ea]">
+          <div className="min-w-0">
+            <p className="text-xs font-medium leading-5 text-[#dce2ea] sm:text-sm">
               Dashboard data isn't connected yet
             </p>
+
             <p className="mt-1 text-xs leading-5 text-[#8292aa]">
               Metrics will appear when real project, execution, failure, and
               mutation-testing results are available. No test results are
               being assumed.
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Metrics */}
-        <section>
-          <div className="mb-4 flex items-center justify-between gap-3">
+        <motion.section
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="min-w-0"
+        >
+          <motion.div
+            variants={itemVariants}
+            className="mb-4 flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between"
+          >
             <div>
               <h2 className="text-sm font-semibold text-[#f1f3f5]">
                 Testing overview
               </h2>
-              <p className="mt-1 text-xs text-[#8292aa]">
+              <p className="mt-1 text-xs leading-5 text-[#8292aa]">
                 A summary of your verification activity
               </p>
             </div>
 
-            <span className="rounded-full border border-[#303640] px-2.5 py-1 text-[10px] text-[#8292aa]">
+            <span className="w-fit rounded-full border border-[#303640] px-2.5 py-1 text-[10px] text-[#8292aa]">
               Awaiting data
             </span>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <motion.div
+            variants={containerVariants}
+            className="grid min-w-0 grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 xl:grid-cols-3"
+          >
             {METRICS.map((metric) => (
-              <MetricCard
+              <motion.div
                 key={metric.label}
-                label={metric.label}
-                value={metric.value}
-                description={metric.description}
-                icon={metric.icon}
-              />
+                variants={itemVariants}
+                whileHover={{ y: -3 }}
+                transition={{ duration: 0.2 }}
+                className="min-w-0"
+              >
+                <MetricCard
+                  label={metric.label}
+                  value={metric.value}
+                  description={metric.description}
+                  icon={metric.icon}
+                />
+              </motion.div>
             ))}
-          </div>
-        </section>
+          </motion.div>
+        </motion.section>
 
         {/* Recent runs and failures */}
-        <section className="grid grid-cols-1 items-start gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,1fr)]">
-          <RecentRunsTable
-            runs={recentRuns}
-            onViewAll={() => navigate("/dashboard/test-runs")}
-          />
+        <motion.section
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid min-w-0 grid-cols-1 items-start gap-4 sm:gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
+        >
+          <motion.div variants={itemVariants} className="min-w-0">
+            <RecentRunsTable
+              runs={recentRuns}
+              onViewAll={() => navigate("/dashboard/test-runs")}
+            />
+          </motion.div>
 
-          <RecentFailures
-            failures={recentFailures}
-            onViewAll={() => navigate("/dashboard/failures")}
-          />
-        </section>
+          <motion.div variants={itemVariants} className="min-w-0">
+            <RecentFailures
+              failures={recentFailures}
+              onViewAll={() => navigate("/dashboard/failures")}
+            />
+          </motion.div>
+        </motion.section>
 
         {/* Veritest's core principle */}
-        <section className="rounded-xl border border-[#285541]/70 bg-[#12251e]/40 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#285541] bg-[#12251e]">
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.15, ease: "easeOut" }}
+          whileHover={{
+            borderColor: "rgba(128, 232, 191, 0.5)",
+            transition: { duration: 0.2 },
+          }}
+          className="min-w-0 rounded-xl border border-[#285541]/70 bg-[#12251e]/40 p-4 sm:p-6"
+        >
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+            <motion.div
+              whileHover={{ rotate: -5, scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300, damping: 18 }}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#285541] bg-[#12251e]"
+            >
               <ShieldCheck size={20} className="text-[#80e8bf]" />
-            </div>
+            </motion.div>
 
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-[#f1f3f5]">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-6 text-[#f1f3f5]">
                 Passing tests isn't the whole story.
               </p>
 
@@ -178,21 +258,22 @@ function DashboardPage() {
               </p>
             </div>
 
-            <button
+            <motion.button
               type="button"
-              onClick={() =>
-                navigate("/dashboard/mutation-testing")
-              }
-              className="inline-flex shrink-0 items-center gap-2 self-start text-xs font-medium text-[#80e8bf] transition-colors hover:text-[#a8f5d4]"
+              onClick={() => navigate("/dashboard/mutation-testing")}
+              whileHover={{ x: 3 }}
+              whileTap={{ scale: 0.97 }}
+              className="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-2 self-start text-xs font-medium text-[#80e8bf] transition-colors hover:text-[#a8f5d4] sm:w-auto sm:justify-start"
             >
               Explore mutation testing
               <ArrowRight size={14} />
-            </button>
+            </motion.button>
           </div>
-        </section>
+        </motion.section>
       </div>
-    </div>
+    </motion.main>
   );
 }
 
 export default DashboardPage;
+

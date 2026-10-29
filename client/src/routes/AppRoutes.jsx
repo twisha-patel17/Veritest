@@ -13,6 +13,7 @@ import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import DashboardPage from "../pages/DashboardPage";
 import ProjectsPage from "../pages/ProjectsPage";
+import NewProjectPage from "../pages/NewProjectPage";
 import ProjectWorkspacePage from "../pages/ProjectWorkspacePage";
 
 import DashboardLayout from "../components/layouts/DashboardLayout";
@@ -120,6 +121,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         >
+          {/* Dashboard overview */}
           <Route index element={<DashboardPage />} />
 
           {/* Project listing */}
@@ -128,22 +130,31 @@ function AppRoutes() {
             element={<ProjectsPage />}
           />
 
+          {/* Create a new project */}
+          <Route
+            path="projects/new"
+            element={<NewProjectPage />}
+          />
+
           {/* Individual project workspace */}
           <Route
             path="projects/:projectId"
             element={<ProjectWorkspacePage />}
           />
 
+          {/* Test runs */}
           <Route
             path="test-runs"
             element={<TestRunsPage />}
           />
 
+          {/* Failure analysis */}
           <Route
             path="failures"
             element={<FailureAnalysisPage />}
           />
 
+          {/* Mutation testing */}
           <Route
             path="mutation-testing"
             element={<MutationTestingPage />}
@@ -161,5 +172,6 @@ function AppRoutes() {
 }
 
 export default AppRoutes;
+
 
 

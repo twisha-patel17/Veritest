@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Play, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 const projectData = {
   "billing-core": {
@@ -57,6 +58,7 @@ function calcProration(start, end, plan) {
       },
     ],
   },
+
   "auth-utils": {
     language: "Node 20",
     file: "auth/validateToken.js",
@@ -107,6 +109,7 @@ function calcProration(start, end, plan) {
       },
     ],
   },
+
   "inventory-sync": {
     language: "Python 3.12",
     file: "inventory/sync.py",
@@ -153,6 +156,12 @@ function calcProration(start, end, plan) {
   },
 };
 
+const springTransition = {
+  type: "spring",
+  stiffness: 260,
+  damping: 24,
+};
+
 export default function ProjectWorkspacePage() {
   const { projectId } = useParams();
   const project = projectData[projectId];
@@ -163,23 +172,30 @@ export default function ProjectWorkspacePage() {
       decision: null,
     }))
   );
+
   const [notice, setNotice] = useState("");
 
   if (!project) {
     return (
-      <main className="min-h-full bg-[#0b0d0f] p-6 text-[#f1f3f5]">
+      <motion.main
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="min-h-full bg-[#0b0d0f] p-6 text-[#f1f3f5]"
+      >
         <h1 className="text-xl font-semibold">Project not found</h1>
+
         <p className="mt-2 text-sm text-[#8292aa]">
           This project does not exist in the demo project list.
         </p>
+
         <Link
           to="/dashboard/projects"
-          className="mt-4 inline-flex text-sm text-[#80e8bf] hover:underline"
+          className="mt-4 inline-flex items-center text-sm text-[#80e8bf] hover:underline"
         >
           <ArrowLeft size={16} className="mr-2" />
           Back to projects
         </Link>
-      </main>
+      </motion.main>
     );
   }
 
@@ -189,6 +205,7 @@ export default function ProjectWorkspacePage() {
         candidate.id === id ? { ...candidate, ...changes } : candidate
       )
     );
+
     setNotice("");
   };
 
@@ -209,6 +226,7 @@ export default function ProjectWorkspacePage() {
           : candidate
       )
     );
+
     setNotice(`${selectedCount} candidate(s) approved.`);
   };
 
@@ -230,24 +248,68 @@ export default function ProjectWorkspacePage() {
     );
   };
 
+  const toggleSelectAll = () => {
+    const undecided = candidates.filter(
+      (candidate) => !candidate.decision
+    );
+
+    const allSelected =
+      undecided.length > 0 &&
+      undecided.every((candidate) => candidate.selected);
+
+    setCandidates((current) =>
+      current.map((candidate) =>
+        candidate.decision
+          ? candidate
+          : { ...candidate, selected: !allSelected }
+      )
+    );
+  };
+
+  const rejectCandidate = (candidate) => {
+    setCandidates((current) =>
+      current.map((item) =>
+        item.id === candidate.id
+          ? { ...item, decision: "Rejected", selected: false }
+          : item
+      )
+    );
+
+    setNotice(`Rejected "${candidate.title}".`);
+  };
+
   return (
-    <main className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5] sm:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+    <motion.main
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.35 }}
+      className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5] sm:p-6"
+    >
+      {/* Workspace header */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="mb-5 flex flex-wrap items-center justify-between gap-4"
+      >
         <div>
-          <div className="mb-2 flex items-center gap-2 text-xs text-[#8292aa]">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#8292aa]">
             <Link
               to="/dashboard/projects"
-              className="hover:text-[#80e8bf]"
+              className="transition-colors hover:text-[#80e8bf]"
             >
               acme-platform
             </Link>
+
             <span>/</span>
+
             <Link
               to="/dashboard/projects"
-              className="hover:text-[#80e8bf]"
+              className="transition-colors hover:text-[#80e8bf]"
             >
               Projects
             </Link>
+
             <span>/</span>
             <span>{projectId} workspace</span>
           </div>
@@ -257,173 +319,221 @@ export default function ProjectWorkspacePage() {
           </h1>
         </div>
 
-        <div className="flex gap-2">
-          <button
+        <div className="flex flex-wrap gap-2">
+          <motion.button
             type="button"
+            whileHover={{ y: -2, scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.18 }}
             onClick={generateTests}
-            className="inline-flex items-center gap-2 rounded-md border border-[#29313b] bg-[#151a20] px-3 py-2.5 text-sm hover:border-[#80e8bf]/50"
+            className="inline-flex items-center gap-2 rounded-md border border-[#29313b] bg-[#151a20] px-3 py-2.5 text-sm transition-colors hover:border-[#80e8bf]/50"
           >
             <Sparkles size={16} />
             Generate tests
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
+            whileHover={{ y: -2, scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.18 }}
             onClick={executeApproved}
-            className="inline-flex items-center gap-2 rounded-md bg-[#80e8bf] px-3 py-2.5 text-sm font-medium text-[#0b0d0f] hover:bg-[#9af0cc]"
+            className="inline-flex items-center gap-2 rounded-md bg-[#80e8bf] px-3 py-2.5 text-sm font-medium text-[#0b0d0f] transition-colors hover:bg-[#9af0cc]"
           >
             <Play size={15} />
             Execute approved
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
-      {notice && (
-        <div
-          role="status"
-          className="mb-4 rounded-lg border border-[#344b41] bg-[#14211b] px-4 py-3 text-sm text-[#a4edca]"
-        >
-          {notice}
-        </div>
-      )}
+      {/* Animated notification */}
+      <AnimatePresence mode="wait">
+        {notice && (
+          <motion.div
+            key={notice}
+            role="status"
+            initial={{ opacity: 0, y: -8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: -5, height: 0 }}
+            transition={{ duration: 0.22 }}
+            className="mb-4 overflow-hidden rounded-lg border border-[#344b41] bg-[#14211b] px-4 py-3 text-sm text-[#a4edca]"
+          >
+            {notice}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* Workspace panels */}
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,1fr)]">
-        <section className="min-w-0">
+        {/* Source code panel */}
+        <motion.section
+          initial={{ opacity: 0, x: -16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.45, delay: 0.1 }}
+          className="min-w-0"
+        >
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">{project.file}</h2>
+
               <p className="mt-1 text-xs text-[#8292aa]">
                 {project.functionName} · {project.language}
               </p>
             </div>
+
             <span className="rounded-full border border-[#29313b] px-2.5 py-1 text-xs text-[#8292aa]">
               Source
             </span>
           </div>
 
-          <pre className="overflow-x-auto rounded-lg border border-[#252c35] bg-[#101419] p-4 text-sm leading-7 text-[#c6d3e2]">
+          <motion.pre
+            whileHover={{
+              borderColor: "rgba(128, 232, 191, 0.35)",
+            }}
+            transition={{ duration: 0.2 }}
+            className="overflow-x-auto rounded-lg border border-[#252c35] bg-[#101419] p-4 text-sm leading-7 text-[#c6d3e2]"
+          >
             <code>{project.code}</code>
-          </pre>
+          </motion.pre>
 
           <p className="mt-3 text-xs leading-5 text-[#8292aa]">
             Demo source code. Connect your repository or file-loading API to
             display real project files.
           </p>
-        </section>
+        </motion.section>
 
-        <section className="min-w-0 overflow-hidden rounded-xl border border-[#252c35] bg-[#101419]">
+        {/* Candidate review panel */}
+        <motion.section
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.45, delay: 0.16 }}
+          className="min-w-0 overflow-hidden rounded-xl border border-[#252c35] bg-[#101419]"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#252c35] p-4">
             <div className="flex items-center gap-2 text-sm font-semibold">
               Candidates
+
               <span className="font-normal text-[#8292aa]">
                 awaiting review
               </span>
             </div>
 
-            <button
+            <motion.button
               type="button"
-              onClick={() => {
-                const undecided = candidates.filter(
-                  (candidate) => !candidate.decision
-                );
-                const allSelected = undecided.every(
-                  (candidate) => candidate.selected
-                );
-
-                setCandidates((current) =>
-                  current.map((candidate) =>
-                    candidate.decision
-                      ? candidate
-                      : { ...candidate, selected: !allSelected }
-                  )
-                );
-              }}
-              className="rounded-md border border-[#29313b] px-3 py-2 text-xs hover:bg-[#1a2027]"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ duration: 0.15 }}
+              onClick={toggleSelectAll}
+              className="rounded-md border border-[#29313b] px-3 py-2 text-xs transition-colors hover:bg-[#1a2027]"
             >
               Select all
-            </button>
+            </motion.button>
           </div>
 
           <div>
-            {candidates.map((candidate) => (
-              <article
-                key={candidate.id}
-                className="border-b border-[#252c35] p-4 last:border-b-0"
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={candidate.selected}
-                    disabled={Boolean(candidate.decision)}
-                    onChange={(event) =>
-                      updateCandidate(candidate.id, {
-                        selected: event.target.checked,
-                      })
-                    }
-                    aria-label={`Select ${candidate.title}`}
-                    className="mt-1 accent-[#80e8bf]"
-                  />
-
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold">
-                      {candidate.title}
-                    </h3>
-                    <p className="mt-1 break-words font-mono text-xs leading-5 text-[#a2b1c5]">
-                      {candidate.input} → {candidate.expected}
-                    </p>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                          candidate.status === "Valid"
-                            ? "border-[#4b86c5] text-[#91c4ff]"
-                            : candidate.status === "Needs review"
-                              ? "border-[#a77a2c] text-[#f2c56b]"
-                              : "border-[#a77a2c] text-[#f2c56b]"
-                        }`}
-                      >
-                        {candidate.status}
-                      </span>
-
-                      {candidate.decision && (
-                        <span className="rounded-full border border-[#477b65] px-2 py-0.5 text-[11px] text-[#80e8bf]">
-                          {candidate.decision}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {!candidate.decision && (
-                    <button
-                      type="button"
-                      onClick={() => {
+            <AnimatePresence initial={false}>
+              {candidates.map((candidate, index) => (
+                <motion.article
+                  key={`${projectId}-${candidate.id}`}
+                  layout
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: 20, height: 0 }}
+                  transition={{
+                    opacity: { duration: 0.22 },
+                    y: springTransition,
+                    x: { duration: 0.2 },
+                    layout: { duration: 0.22 },
+                    delay: index * 0.045,
+                  }}
+                  className="border-b border-[#252c35] p-4 last:border-b-0"
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={candidate.selected}
+                      disabled={Boolean(candidate.decision)}
+                      onChange={(event) =>
                         updateCandidate(candidate.id, {
-                          decision: "Rejected",
-                          selected: false,
-                        });
-                        setNotice(`Rejected "${candidate.title}".`);
-                      }}
-                      className="rounded-md border border-[#29313b] px-3 py-2 text-xs hover:border-red-400/60 hover:text-red-300"
-                    >
-                      Reject
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
+                          selected: event.target.checked,
+                        })
+                      }
+                      aria-label={`Select ${candidate.title}`}
+                      className="mt-1 accent-[#80e8bf]"
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-semibold">
+                        {candidate.title}
+                      </h3>
+
+                      <p className="mt-1 break-words font-mono text-xs leading-5 text-[#a2b1c5]">
+                        {candidate.input} → {candidate.expected}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                            candidate.status === "Valid"
+                              ? "border-[#4b86c5] text-[#91c4ff]"
+                              : "border-[#a77a2c] text-[#f2c56b]"
+                          }`}
+                        >
+                          {candidate.status}
+                        </span>
+
+                        <AnimatePresence>
+                          {candidate.decision && (
+                            <motion.span
+                              initial={{ opacity: 0, scale: 0.85 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.85 }}
+                              transition={{ duration: 0.18 }}
+                              className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                candidate.decision === "Approved"
+                                  ? "border-[#477b65] text-[#80e8bf]"
+                                  : "border-red-400/40 text-red-300"
+                              }`}
+                            >
+                              {candidate.decision}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+
+                    {!candidate.decision && (
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        onClick={() => rejectCandidate(candidate)}
+                        className="shrink-0 rounded-md border border-[#29313b] px-3 py-2 text-xs transition-colors hover:border-red-400/60 hover:text-red-300"
+                      >
+                        Reject
+                      </motion.button>
+                    )}
+                  </div>
+                </motion.article>
+              ))}
+            </AnimatePresence>
           </div>
 
           <div className="border-t border-[#252c35] p-4">
-            <button
+            <motion.button
               type="button"
+              whileHover={{ scale: 1.025 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ duration: 0.15 }}
               onClick={approveSelected}
-              className="rounded-md bg-[#80e8bf] px-4 py-2.5 text-sm font-medium text-[#0b0d0f] hover:bg-[#9af0cc]"
+              className="rounded-md bg-[#80e8bf] px-4 py-2.5 text-sm font-medium text-[#0b0d0f] transition-colors hover:bg-[#9af0cc]"
             >
               Approve {selectedCount} selected
-            </button>
+            </motion.button>
           </div>
-        </section>
+        </motion.section>
       </div>
-    </main>
+    </motion.main>
   );
 }
