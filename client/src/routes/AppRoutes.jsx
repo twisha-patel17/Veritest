@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Routes,
@@ -11,6 +12,8 @@ import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import DashboardPage from "../pages/DashboardPage";
+import ProjectsPage from "../pages/ProjectsPage";
+import ProjectWorkspacePage from "../pages/ProjectWorkspacePage";
 
 import DashboardLayout from "../components/layouts/DashboardLayout";
 
@@ -50,17 +53,6 @@ function PublicOnlyRoute({ children }) {
   return children;
 }
 
-function ProjectsPage() {
-  return (
-    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
-      <h1 className="text-2xl font-semibold">Projects</h1>
-      <p className="mt-2 text-sm text-[#8292aa]">
-        Your projects will appear here.
-      </p>
-    </div>
-  );
-}
-
 function TestRunsPage() {
   return (
     <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
@@ -98,6 +90,7 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public pages */}
         <Route path="/" element={<LandingPage />} />
 
         <Route
@@ -118,6 +111,7 @@ function AppRoutes() {
           }
         />
 
+        {/* Protected dashboard */}
         <Route
           path="/dashboard"
           element={
@@ -128,9 +122,16 @@ function AppRoutes() {
         >
           <Route index element={<DashboardPage />} />
 
+          {/* Project listing */}
           <Route
             path="projects"
             element={<ProjectsPage />}
+          />
+
+          {/* Individual project workspace */}
+          <Route
+            path="projects/:projectId"
+            element={<ProjectWorkspacePage />}
           />
 
           <Route
@@ -149,6 +150,7 @@ function AppRoutes() {
           />
         </Route>
 
+        {/* Unknown routes */}
         <Route
           path="*"
           element={<Navigate to="/" replace />}
