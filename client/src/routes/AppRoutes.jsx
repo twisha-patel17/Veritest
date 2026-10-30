@@ -11,16 +11,22 @@ import { useAuth } from "../context/AuthContext";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
+
 import DashboardPage from "../pages/DashboardPage";
 import ProjectsPage from "../pages/ProjectsPage";
 import NewProjectPage from "../pages/NewProjectPage";
 import ProjectWorkspacePage from "../pages/ProjectWorkspacePage";
+
 import TestRunsPage from "../pages/TestRunsPage";
+
 import FailureAnalysisPage from "../pages/FailureAnalysisPage";
 import FailureDetailPage from "../pages/FailureDetailPage";
 
+import MutationTestingPage from "../pages/MutationTestingPage";
+
 import DashboardLayout from "../components/layouts/DashboardLayout";
 
+// Session loading screen
 function CheckingSession() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0b0d0f] text-[#80e8bf]">
@@ -29,6 +35,7 @@ function CheckingSession() {
   );
 }
 
+// Protected routes
 function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -43,6 +50,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Public routes
 function PublicOnlyRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -57,26 +65,15 @@ function PublicOnlyRoute({ children }) {
   return children;
 }
 
-// Temporary placeholder
-function MutationTestingPage() {
-  return (
-    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
-      <h1 className="text-2xl font-semibold">
-        Mutation testing
-      </h1>
-      <p className="mt-2 text-sm text-[#8292aa]">
-        Measure whether your tests detect intentional code changes.
-      </p>
-    </div>
-  );
-}
-
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public pages */}
-        <Route path="/" element={<LandingPage />} />
+
+        <Route
+          path="/"
+          element={<LandingPage />}
+        />
 
         <Route
           path="/login"
@@ -96,7 +93,6 @@ function AppRoutes() {
           }
         />
 
-        {/* Protected dashboard */}
         <Route
           path="/dashboard"
           element={
@@ -105,10 +101,13 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         >
-          {/* Dashboard overview */}
-          <Route index element={<DashboardPage />} />
 
-          {/* Projects */}
+          {/* Dashboard overview */}
+          <Route
+            index
+            element={<DashboardPage />}
+          />
+
           <Route
             path="projects"
             element={<ProjectsPage />}
@@ -124,41 +123,35 @@ function AppRoutes() {
             element={<ProjectWorkspacePage />}
           />
 
-          {/* Test runs */}
           <Route
             path="test-runs"
             element={<TestRunsPage />}
           />
 
-          {/* Failure analysis */}
           <Route
             path="failures"
             element={<FailureAnalysisPage />}
           />
 
-          {/* Individual failure details */}
           <Route
             path="failures/:failureId"
             element={<FailureDetailPage />}
           />
 
-          {/* Mutation testing */}
           <Route
             path="mutation-testing"
             element={<MutationTestingPage />}
           />
-        </Route>
 
-        {/* Unknown routes */}
+        </Route>
         <Route
           path="*"
           element={<Navigate to="/" replace />}
         />
+
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default AppRoutes;
-
-
