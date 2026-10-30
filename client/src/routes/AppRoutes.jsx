@@ -15,6 +15,7 @@ import DashboardPage from "../pages/DashboardPage";
 import ProjectsPage from "../pages/ProjectsPage";
 import NewProjectPage from "../pages/NewProjectPage";
 import ProjectWorkspacePage from "../pages/ProjectWorkspacePage";
+import TestRunsPage from "../pages/TestRunsPage";
 
 import DashboardLayout from "../components/layouts/DashboardLayout";
 
@@ -54,17 +55,7 @@ function PublicOnlyRoute({ children }) {
   return children;
 }
 
-function TestRunsPage() {
-  return (
-    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
-      <h1 className="text-2xl font-semibold">Test runs</h1>
-      <p className="mt-2 text-sm text-[#8292aa]">
-        View and manage your test runs.
-      </p>
-    </div>
-  );
-}
-
+// Temporary placeholder pages
 function FailureAnalysisPage() {
   return (
     <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
@@ -124,13 +115,13 @@ function AppRoutes() {
           {/* Dashboard overview */}
           <Route index element={<DashboardPage />} />
 
-          {/* Project listing */}
+          {/* Projects */}
           <Route
             path="projects"
             element={<ProjectsPage />}
           />
 
-          {/* Create a new project */}
+          {/* Create project */}
           <Route
             path="projects/new"
             element={<NewProjectPage />}
@@ -172,6 +163,4 @@ function AppRoutes() {
 }
 
 export default AppRoutes;
-
-
 
