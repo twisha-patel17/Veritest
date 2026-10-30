@@ -1,0 +1,66 @@
+
+export const DEMO_FAILURES = [
+  {
+    id: "failure-1",
+    title: "Proration goes negative on leap-day downgrade",
+    functionName: "calcProration",
+    failureType: "Assertion failure",
+    runId: "run_8f3a",
+    status: "REPRODUCED",
+    summary: "3 of 3 attempts failed identically",
+    project: "billing-core",
+    input: `{
+  "startDate": "2024-02-29",
+  "endDate": "2024-02-28",
+  "plan": "premium"
+}`,
+    expected: "A non-negative proration amount",
+    actual: "-12.50",
+    stackTrace: `AssertionError: Expected proration amount >= 0
+    at calcProration (billing/proration.js:42:11)
+    at Object.<anonymous> (tests/proration.test.js:28:5)`,
+    minimization: "Completed. Reduced to the smallest failing input.",
+    attempts: 3,
+    successfulReproductions: 3,
+    createdAt: "Oct 15, 09:12",
+  },
+  {
+    id: "failure-2",
+    title: "validateToken exceeds 5s limit on malformed padding",
+    functionName: "validateToken",
+    failureType: "Timeout",
+    runId: "run_7b92",
+    status: "UNCONFIRMED",
+    summary: "Observed once; 0 of 3 reattempts timed out",
+    project: "auth-utils",
+    input: `"eyJhbGciOi.══════"`,
+    expected: "false",
+    actual: "(no result, 5000ms limit)",
+    stackTrace: "TimeoutError: test exceeded 5000ms",
+    minimization: "Not run, reproduction not confirmed.",
+    attempts: 3,
+    successfulReproductions: 0,
+    createdAt: "Oct 14, 11:05",
+  },
+  {
+    id: "failure-3",
+    title: "Generated test assumes rounding to 3 decimals",
+    functionName: "calcProration",
+    failureType: "Invalid generated test",
+    runId: "run_6a01",
+    status: "UNCONFIRMED",
+    summary: "Spec states 2 decimals; assertion likely wrong",
+    project: "billing-core",
+    input: `{
+  "amount": 125.456,
+  "precision": 3
+}`,
+    expected: "125.46",
+    actual: "125.456",
+    stackTrace: "AssertionError: Expected 125.46 but received 125.456",
+    minimization: "Not run. Generated assertion conflicts with the specification.",
+    attempts: 0,
+    successfulReproductions: 0,
+    createdAt: "Oct 12, 15:22",
+  },
+];

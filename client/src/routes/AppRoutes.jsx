@@ -16,6 +16,8 @@ import ProjectsPage from "../pages/ProjectsPage";
 import NewProjectPage from "../pages/NewProjectPage";
 import ProjectWorkspacePage from "../pages/ProjectWorkspacePage";
 import TestRunsPage from "../pages/TestRunsPage";
+import FailureAnalysisPage from "../pages/FailureAnalysisPage";
+import FailureDetailPage from "../pages/FailureDetailPage";
 
 import DashboardLayout from "../components/layouts/DashboardLayout";
 
@@ -55,22 +57,13 @@ function PublicOnlyRoute({ children }) {
   return children;
 }
 
-// Temporary placeholder pages
-function FailureAnalysisPage() {
-  return (
-    <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
-      <h1 className="text-2xl font-semibold">Failure analysis</h1>
-      <p className="mt-2 text-sm text-[#8292aa]">
-        Investigate reproducible failures and unexpected behavior.
-      </p>
-    </div>
-  );
-}
-
+// Temporary placeholder
 function MutationTestingPage() {
   return (
     <div className="min-h-full bg-[#0b0d0f] p-5 text-[#f1f3f5]">
-      <h1 className="text-2xl font-semibold">Mutation testing</h1>
+      <h1 className="text-2xl font-semibold">
+        Mutation testing
+      </h1>
       <p className="mt-2 text-sm text-[#8292aa]">
         Measure whether your tests detect intentional code changes.
       </p>
@@ -121,13 +114,11 @@ function AppRoutes() {
             element={<ProjectsPage />}
           />
 
-          {/* Create project */}
           <Route
             path="projects/new"
             element={<NewProjectPage />}
           />
 
-          {/* Individual project workspace */}
           <Route
             path="projects/:projectId"
             element={<ProjectWorkspacePage />}
@@ -143,6 +134,12 @@ function AppRoutes() {
           <Route
             path="failures"
             element={<FailureAnalysisPage />}
+          />
+
+          {/* Individual failure details */}
+          <Route
+            path="failures/:failureId"
+            element={<FailureDetailPage />}
           />
 
           {/* Mutation testing */}
@@ -163,4 +160,5 @@ function AppRoutes() {
 }
 
 export default AppRoutes;
+
 
