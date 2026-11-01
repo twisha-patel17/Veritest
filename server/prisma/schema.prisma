@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,13 +7,14 @@ datasource db {
 }
 
 model User {
-  id             String           @id @default(cuid())
-  name           String
-  email          String           @unique
-  passwordHash   String
+  id              String           @id @default(cuid())
+  name            String
+  email           String           @unique
+  passwordHash    String
   refreshSessions RefreshSession[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  projects        Project[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model RefreshSession {
@@ -29,4 +29,94 @@ model RefreshSession {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model Project {
+  id          String       @id @default(cuid())
+  name        String
+  description String?      @db.Text
+  language    String
+  framework   String?
+  userId      String
+  sourceFiles SourceFile[]
+  testCases   TestCase[]
+  testRuns    TestRun[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SourceFile {
+  id        String   @id @default(cuid())
+  projectId String
+  fileName  String
+  filePath  String
+  content   String   @db.Text
+  language  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, filePath])
+  @@index([projectId])
+}
+
+model TestCase {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  description String?  @db.Text
+  testCode    String   @db.Text
+  sourceFile  String?
+  origin      String   @default("AI")
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  results TestResult[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model TestRun {
+  id           String    @id @default(cuid())
+  projectId    String
+  status       String    @default("PENDING")
+  totalTests   Int       @default(0)
+  passedTests  Int       @default(0)
+  failedTests  Int       @default(0)
+  skippedTests Int       @default(0)
+  duration     Int?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  results TestResult[]
+
+  @@index([projectId, createdAt])
+  @@index([status])
+}
+
+model TestResult {
+  id           String   @id @default(cuid())
+  testRunId    String
+  testCaseId   String
+  status       String
+  duration     Int?
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  testRun  TestRun  @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  testCase TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([testRunId, testCaseId])
+  @@index([testCaseId])
 }
