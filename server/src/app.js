@@ -8,6 +8,7 @@ const projectRoutes = require("./routes/project.routes");
 const errorMiddleware = require("./middleware/error.middleware");
 const testcaseRoutes = require("./routes/testcase.routes");
 const testrunRoutes = require("./routes/testrun.routes");
+const executionRoutes = require("./routes/execution.routes");
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api", testcaseRoutes);
 app.use("/api", testrunRoutes);
+app.use("/api", executionRoutes);
 
 app.use(errorMiddleware);
 
