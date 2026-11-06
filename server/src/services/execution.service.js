@@ -32,7 +32,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
     throw new Error("No test cases found");
   }
 
-  // 3. Acquire execution lock.
+  // 3. Acquire execution lock atomically.
   const lock = await prisma.testRun.updateMany({
     where: {
       id: testRunId,
@@ -43,6 +43,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
       status: "RUNNING",
       startedAt: new Date(),
       completedAt: null,
+      totalTests: testCases.length,
       passedTests: 0,
       failedTests: 0,
       skippedTests: 0,
@@ -57,46 +58,58 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
   }
 
   try {
-    // 4. Initialize TestRun statistics.
-    await prisma.testRun.update({
-      where: {
-        id: testRunId,
-      },
-      data: {
-        totalTests: testCases.length,
-      },
-    });
-
     let passedTests = 0;
     let failedTests = 0;
     let skippedTests = 0;
     let errorTests = 0;
     let totalDuration = 0;
 
-    // 5. Execute test cases sequentially.
+    // 4. Execute test cases sequentially.
     for (const testCase of testCases) {
       let result;
 
       try {
         result = await executeTestCase(testCase.testCode);
+
+        // 5. Validate test runner output.
+        const validStatuses = [
+          "PASSED",
+          "FAILED",
+          "SKIPPED",
+          "ERROR",
+        ];
+
+        if (
+          !result ||
+          !validStatuses.includes(result.status)
+        ) {
+          throw new Error(
+            "Invalid result received from test runner"
+          );
+        }
       } catch (error) {
-        // Infrastructure or execution-provider error.
+        // 6. Handle provider or runner failures.
         result = {
           status: "ERROR",
           duration: null,
           exitCode: null,
           stdout: "",
           stderr: "",
-          errorMessage: error.message || "Execution provider failed",
+          errorMessage:
+            error.message || "Execution provider failed",
         };
       }
 
-      // 6. Aggregate execution duration.
-      if (typeof result.duration === "number") {
+      // 7. Aggregate execution duration.
+      if (
+        typeof result.duration === "number" &&
+        Number.isFinite(result.duration) &&
+        result.duration >= 0
+      ) {
         totalDuration += result.duration;
       }
 
-      // 7. Update execution counters.
+      // 8. Update execution counters.
       switch (result.status) {
         case "PASSED":
           passedTests++;
@@ -113,14 +126,9 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
         case "ERROR":
           errorTests++;
           break;
-
-        default:
-          throw new Error(
-            `Unexpected test result status: ${result.status}`
-          );
       }
 
-      // 8. Save individual test result.
+      // 9. Persist individual test result.
       await prisma.testResult.upsert({
         where: {
           testRunId_testCaseId: {
@@ -128,22 +136,32 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
             testCaseId: testCase.id,
           },
         },
-        update: result,
+        update: {
+          status: result.status,
+          duration: result.duration,
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          errorMessage: result.errorMessage,
+        },
         create: {
           testRunId,
           testCaseId: testCase.id,
-          ...result,
+          status: result.status,
+          duration: result.duration,
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          errorMessage: result.errorMessage,
         },
       });
     }
 
-    // 9. Determine final TestRun status.
-    const finalStatus =
-      errorTests === testCases.length
-        ? "FAILED"
-        : "COMPLETED";
+    // 10. Determine final TestRun status.
+    // Individual test errors do not mean orchestration failed.
+    const finalStatus = "COMPLETED";
 
-    // 10. Persist final statistics.
+    // 11. Persist final statistics.
     const completedRun = await prisma.testRun.update({
       where: {
         id: testRunId,
@@ -152,7 +170,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
         status: finalStatus,
         totalTests: testCases.length,
         passedTests,
-        failedTests,
+        failedTests: failedTests + errorTests,
         skippedTests,
         duration: totalDuration,
         completedAt: new Date(),
@@ -178,16 +196,26 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
       errorTests,
     };
   } catch (error) {
-    // 11. Mark orchestration failure.
-    await prisma.testRun.update({
-      where: {
-        id: testRunId,
-      },
-      data: {
-        status: "FAILED",
-        completedAt: new Date(),
-      },
-    });
+    // 12. Mark orchestration failure.
+    try {
+      await prisma.testRun.updateMany({
+        where: {
+          id: testRunId,
+          projectId,
+          status: "RUNNING",
+        },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+        },
+      });
+    } catch (cleanupError) {
+      // Preserve the original execution error.
+      console.error(
+        "Failed to update TestRun after execution error:",
+        cleanupError
+      );
+    }
 
     throw error;
   }

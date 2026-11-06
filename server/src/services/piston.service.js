@@ -1,3 +1,4 @@
+
 const PISTON_URL = (
   process.env.PISTON_URL || "http://localhost:2000"
 ).replace(/\/+$/, "");
@@ -17,40 +18,53 @@ const executeCode = async ({
   args = [],
   runTimeout = 3000,
 }) => {
-  // Validate source code
+  // 1. Validate source code.
   if (typeof sourceCode !== "string" || !sourceCode.trim()) {
     throw new Error("Source code is required");
   }
 
-  if (Buffer.byteLength(sourceCode, "utf8") > EXECUTION_LIMITS.maxSourceSize) {
+  if (
+    Buffer.byteLength(sourceCode, "utf8") >
+    EXECUTION_LIMITS.maxSourceSize
+  ) {
     throw new Error("Source code exceeds the 100 KB limit");
   }
 
-  // Initially support JavaScript only
+  // 2. Validate language and runtime.
   if (language !== "javascript") {
-    throw new Error("Only JavaScript execution is currently supported");
+    throw new Error(
+      "Only JavaScript execution is currently supported"
+    );
   }
 
   if (version !== "20.11.1") {
     throw new Error("Unsupported JavaScript runtime version");
   }
 
+  // 3. Validate stdin.
   if (typeof stdin !== "string") {
     throw new Error("stdin must be a string");
   }
 
-  if (Buffer.byteLength(stdin, "utf8") > EXECUTION_LIMITS.maxStdinSize) {
+  if (
+    Buffer.byteLength(stdin, "utf8") >
+    EXECUTION_LIMITS.maxStdinSize
+  ) {
     throw new Error("stdin exceeds the 10 KB limit");
   }
 
+  // 4. Validate arguments.
   if (
     !Array.isArray(args) ||
     args.length > 20 ||
-    !args.every((arg) => typeof arg === "string" && arg.length <= 1000)
+    !args.every(
+      (arg) => typeof arg === "string" && arg.length <= 1000
+    )
   ) {
     throw new Error("Invalid execution arguments");
   }
 
+  // 5. Validate execution timeout.
   if (
     !Number.isInteger(runTimeout) ||
     runTimeout < 100 ||
@@ -59,6 +73,7 @@ const executeCode = async ({
     throw new Error("Invalid execution timeout");
   }
 
+  // 6. Prepare Piston payload.
   const payload = {
     language,
     version,
@@ -74,57 +89,121 @@ const executeCode = async ({
   };
 
   try {
-    const response = await fetch(`${PISTON_URL}/api/v2/execute`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(EXECUTION_LIMITS.requestTimeout),
-    });
+    // 7. Execute code through Piston.
+    const response = await fetch(
+      `${PISTON_URL}/api/v2/execute`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(
+          EXECUTION_LIMITS.requestTimeout
+        ),
+      }
+    );
 
+    // 8. Handle HTTP errors.
     if (!response.ok) {
       const errorBody = await response.text();
 
       throw new Error(
-        `Piston execution failed (${response.status}): ${errorBody.slice(0, 1000)}`
+        `Piston execution failed (${response.status}): ${errorBody.slice(
+          0,
+          1000
+        )}`
       );
     }
 
-    const result = await response.json();
+    // 9. Parse provider response.
+    let result;
 
-    if (!result.run) {
-      throw new Error("Invalid response received from Piston");
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(
+        "Piston returned an invalid JSON response"
+      );
     }
 
-    return {
-      language: result.language,
-      version: result.version,
+    // 10. Validate response structure.
+    if (
+      !result ||
+      typeof result !== "object" ||
+      !result.run ||
+      typeof result.run !== "object"
+    ) {
+      throw new Error(
+        "Invalid response received from Piston"
+      );
+    }
 
-      compile: result.compile
-        ? {
-            stdout: result.compile.stdout || "",
-            stderr: result.compile.stderr || "",
-            code: result.compile.code ?? null,
-            signal: result.compile.signal ?? null,
-          }
-        : null,
+    const run = result.run;
+
+    if (
+      typeof run.stdout !== "string" ||
+      typeof run.stderr !== "string" ||
+      !(
+        run.code === null ||
+        Number.isInteger(run.code)
+      )
+    ) {
+      throw new Error(
+        "Piston returned an incomplete execution result"
+      );
+    }
+
+    // 11. Validate compilation result when present.
+    let compile = null;
+
+    if (result.compile !== undefined && result.compile !== null) {
+      if (
+        typeof result.compile !== "object" ||
+        typeof result.compile.stdout !== "string" ||
+        typeof result.compile.stderr !== "string"
+      ) {
+        throw new Error(
+          "Piston returned an invalid compilation result"
+        );
+      }
+
+      compile = {
+        stdout: result.compile.stdout,
+        stderr: result.compile.stderr,
+        code: result.compile.code ?? null,
+        signal: result.compile.signal ?? null,
+      };
+    }
+
+    // 12. Return normalized execution result.
+    return {
+      language: result.language ?? language,
+      version: result.version ?? version,
+
+      compile,
 
       run: {
-        stdout: result.run.stdout || "",
-        stderr: result.run.stderr || "",
-        code: result.run.code ?? null,
-        signal: result.run.signal ?? null,
-        memory: result.run.memory ?? null,
-        cpuTime: result.run.cpu_time ?? null,
-        wallTime: result.run.wall_time ?? null,
-        message: result.run.message ?? null,
-        status: result.run.status ?? null,
+        stdout: run.stdout,
+        stderr: run.stderr,
+        code: run.code,
+        signal: run.signal ?? null,
+        memory: run.memory ?? null,
+        cpuTime: run.cpu_time ?? null,
+        wallTime: run.wall_time ?? null,
+        message: run.message ?? null,
+        status: run.status ?? null,
       },
     };
   } catch (error) {
-    if (error.name === "TimeoutError" || error.name === "AbortError") {
-      throw new Error("Execution provider request timed out");
+    // 13. Normalize provider timeout errors.
+    if (
+      error.name === "TimeoutError" ||
+      error.name === "AbortError"
+    ) {
+      throw new Error(
+        "Execution provider request timed out"
+      );
     }
 
     throw error;
