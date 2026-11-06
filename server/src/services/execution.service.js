@@ -156,12 +156,8 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
         },
       });
     }
-
-    // 10. Determine final TestRun status.
-    // Individual test errors do not mean orchestration failed.
     const finalStatus = "COMPLETED";
 
-    // 11. Persist final statistics.
     const completedRun = await prisma.testRun.update({
       where: {
         id: testRunId,
@@ -210,7 +206,6 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
         },
       });
     } catch (cleanupError) {
-      // Preserve the original execution error.
       console.error(
         "Failed to update TestRun after execution error:",
         cleanupError
