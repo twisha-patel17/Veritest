@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  Clock3,
   Code2,
   FolderPlus,
   Info,
@@ -15,24 +14,25 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 
+import { createProject } from "../services/projectService";
+
 const RUNTIMES = {
-  node20: {
-    label: "Node 20",
+  javascript: {
+    label: "Node.js",
     frameworks: [
       { value: "node:test", label: "node:test" },
       { value: "vitest", label: "Vitest" },
       { value: "jest", label: "Jest" },
     ],
   },
-  node22: {
-    label: "Node 22",
+  typescript: {
+    label: "TypeScript",
     frameworks: [
-      { value: "node:test", label: "node:test" },
       { value: "vitest", label: "Vitest" },
       { value: "jest", label: "Jest" },
     ],
   },
-  python312: {
+  python: {
     label: "Python 3.12",
     frameworks: [
       { value: "pytest", label: "pytest" },
@@ -40,13 +40,6 @@ const RUNTIMES = {
     ],
   },
 };
-
-const TIME_LIMITS = [
-  { value: "1000", label: "1 second" },
-  { value: "5000", label: "5 seconds" },
-  { value: "10000", label: "10 seconds" },
-  { value: "30000", label: "30 seconds" },
-];
 
 const panelVariants = {
   hidden: { opacity: 0, y: 18 },
@@ -76,14 +69,15 @@ export default function NewProjectPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [runtime, setRuntime] = useState("node20");
+  const [runtime, setRuntime] = useState("javascript");
   const [framework, setFramework] = useState("node:test");
-  const [timeLimit, setTimeLimit] = useState("5000");
+
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(false);
 
   const projectId = useMemo(() => slugify(name), [name]);
+
   const availableFrameworks = RUNTIMES[runtime].frameworks;
 
   function handleRuntimeChange(value) {
@@ -91,8 +85,11 @@ export default function NewProjectPage() {
     setFramework(RUNTIMES[value].frameworks[0].value);
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+
+    if (saving) return;
+
     setError("");
 
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
@@ -102,50 +99,58 @@ export default function NewProjectPage() {
       return;
     }
 
-    if (name.trim().length > 60) {
-      setError("Project name must be 60 characters or fewer.");
+    if (projectId.length > 100) {
+      setError("Project name must be 100 characters or fewer.");
+      return;
+    }
+
+    if (description.trim().length > 500) {
+      setError("Description must be 500 characters or fewer.");
       return;
     }
 
     try {
-      const existing = JSON.parse(
-        localStorage.getItem("veritest-projects") || "[]"
-      );
-
-      if (existing.some((project) => project.id === projectId)) {
-        setError("A project with this name already exists.");
-        return;
-      }
-
       setSaving(true);
 
-      const newProject = {
-        id: projectId,
+      const projectData = {
         name: projectId,
         description: description.trim(),
-        runtime,
-        language: RUNTIMES[runtime].label,
+        language: runtime,
         framework,
-        timeLimit: Number(timeLimit),
-        createdAt: new Date().toISOString(),
-        isDemo: false,
       };
 
-      localStorage.setItem(
-        "veritest-projects",
-        JSON.stringify([...existing, newProject])
-      );
+      const response = await createProject(projectData);
+
+      if (!response.success || !response.project?.id) {
+        throw new Error(
+          response.message || "Project creation failed."
+        );
+      }
 
       setCreated(true);
 
-      window.setTimeout(() => {
-        navigate("/dashboard/projects", {
-          state: { createdProject: projectId },
-        });
-      }, 700);
-    } catch {
+      // Navigate using the actual database project ID.
+      navigate(`/dashboard/projects/${response.project.id}`, {
+        state: { createdProject: response.project },
+      });
+    } catch (err) {
+      const backendErrors = err.response?.data?.errors;
+
+      if (backendErrors) {
+        const firstError = Object.values(backendErrors)
+          .flat()
+          .find(Boolean);
+
+        setError(firstError || "Invalid project details.");
+      } else {
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            "Could not create the project. Please try again."
+        );
+      }
+    } finally {
       setSaving(false);
-      setError("Could not save the project in this browser. Please try again.");
     }
   }
 
@@ -184,7 +189,11 @@ export default function NewProjectPage() {
                 <motion.div
                   initial={{ scale: 0.8, rotate: -8, opacity: 0 }}
                   animate={{ scale: 1, rotate: 0, opacity: 1 }}
-                  transition={{ delay: 0.12, type: "spring", stiffness: 180 }}
+                  transition={{
+                    delay: 0.12,
+                    type: "spring",
+                    stiffness: 180,
+                  }}
                   className="shrink-0 rounded-xl border border-[#285541] bg-[#14271f] p-3 text-[#80e8bf]"
                 >
                   <FolderPlus size={25} />
@@ -201,8 +210,8 @@ export default function NewProjectPage() {
                   </h1>
 
                   <p className="mt-2 max-w-lg text-sm leading-6 text-[#a3b1c7]">
-                    Set up a codebase and choose how Veritest should execute
-                    its tests.
+                    Set up a codebase and choose the language and
+                    test framework Veritest should use.
                   </p>
                 </div>
               </div>
@@ -213,13 +222,19 @@ export default function NewProjectPage() {
               <div>
                 <div className="mb-4 flex items-center gap-2">
                   <Code2 size={17} className="text-[#80e8bf]" />
-                  <h2 className="text-sm font-semibold">Project details</h2>
+                  <h2 className="text-sm font-semibold">
+                    Project details
+                  </h2>
                 </div>
 
                 <div className="space-y-5">
                   <div>
-                    <label htmlFor="project-name" className={labelClass}>
-                      Project name <span className="text-[#80e8bf]">*</span>
+                    <label
+                      htmlFor="project-name"
+                      className={labelClass}
+                    >
+                      Project name{" "}
+                      <span className="text-[#80e8bf]">*</span>
                     </label>
 
                     <input
@@ -227,7 +242,7 @@ export default function NewProjectPage() {
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                       placeholder="e.g. billing-core"
-                      maxLength={60}
+                      maxLength={100}
                       autoComplete="off"
                       required
                       className={inputClass}
@@ -237,29 +252,37 @@ export default function NewProjectPage() {
                       Use lowercase letters, numbers, and hyphens.
                       {projectId && (
                         <span className="ml-1 text-[#80e8bf]">
-                          ID: {projectId}
+                          Project name: {projectId}
                         </span>
                       )}
                     </p>
                   </div>
 
                   <div>
-                    <label htmlFor="project-description" className={labelClass}>
-                      Description <span className="text-[#65758a]">(optional)</span>
+                    <label
+                      htmlFor="project-description"
+                      className={labelClass}
+                    >
+                      Description{" "}
+                      <span className="text-[#65758a]">
+                        (optional)
+                      </span>
                     </label>
 
                     <textarea
                       id="project-description"
                       value={description}
-                      onChange={(event) => setDescription(event.target.value)}
+                      onChange={(event) =>
+                        setDescription(event.target.value)
+                      }
                       placeholder="What does this codebase do?"
                       rows={3}
-                      maxLength={240}
+                      maxLength={500}
                       className={`${inputClass} resize-y`}
                     />
 
                     <p className="mt-1 text-right text-[11px] text-[#65758a]">
-                      {description.length}/240
+                      {description.length}/500
                     </p>
                   </div>
                 </div>
@@ -271,13 +294,18 @@ export default function NewProjectPage() {
               <div>
                 <div className="mb-4 flex items-center gap-2">
                   <Layers3 size={17} className="text-[#80e8bf]" />
-                  <h2 className="text-sm font-semibold">Execution settings</h2>
+                  <h2 className="text-sm font-semibold">
+                    Project configuration
+                  </h2>
                 </div>
 
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="project-runtime" className={labelClass}>
-                      Runtime
+                    <label
+                      htmlFor="project-runtime"
+                      className={labelClass}
+                    >
+                      Language
                     </label>
 
                     <div className="relative">
@@ -289,12 +317,15 @@ export default function NewProjectPage() {
                         }
                         className={`${inputClass} appearance-none pr-10`}
                       >
-                        {Object.entries(RUNTIMES).map(([value, item]) => (
-                          <option key={value} value={value}>
-                            {item.label}
-                          </option>
-                        ))}
+                        {Object.entries(RUNTIMES).map(
+                          ([value, item]) => (
+                            <option key={value} value={value}>
+                              {item.label}
+                            </option>
+                          )
+                        )}
                       </select>
+
                       <ChevronDown
                         size={16}
                         className="pointer-events-none absolute right-3 top-1/2 mt-1 -translate-y-1/2 text-[#8292aa]"
@@ -303,7 +334,10 @@ export default function NewProjectPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="test-framework" className={labelClass}>
+                    <label
+                      htmlFor="test-framework"
+                      className={labelClass}
+                    >
                       Test framework
                     </label>
 
@@ -311,15 +345,21 @@ export default function NewProjectPage() {
                       <select
                         id="test-framework"
                         value={framework}
-                        onChange={(event) => setFramework(event.target.value)}
+                        onChange={(event) =>
+                          setFramework(event.target.value)
+                        }
                         className={`${inputClass} appearance-none pr-10`}
                       >
                         {availableFrameworks.map((item) => (
-                          <option key={item.value} value={item.value}>
+                          <option
+                            key={item.value}
+                            value={item.value}
+                          >
                             {item.label}
                           </option>
                         ))}
                       </select>
+
                       <ChevronDown
                         size={16}
                         className="pointer-events-none absolute right-3 top-1/2 mt-1 -translate-y-1/2 text-[#8292aa]"
@@ -330,41 +370,10 @@ export default function NewProjectPage() {
                       The framework intended for generated tests.
                     </p>
                   </div>
-
-                  <div className="sm:col-span-2">
-                    <label htmlFor="time-limit" className={labelClass}>
-                      Per-test time limit
-                    </label>
-
-                    <div className="relative">
-                      <select
-                        id="time-limit"
-                        value={timeLimit}
-                        onChange={(event) => setTimeLimit(event.target.value)}
-                        className={`${inputClass} appearance-none pr-10`}
-                      >
-                        {TIME_LIMITS.map((item) => (
-                          <option key={item.value} value={item.value}>
-                            {item.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown
-                        size={16}
-                        className="pointer-events-none absolute right-3 top-1/2 mt-1 -translate-y-1/2 text-[#8292aa]"
-                      />
-                    </div>
-
-                    <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-[#8292aa]">
-                      <Clock3 size={13} className="mt-0.5 shrink-0" />
-                      Tests exceeding this limit should be recorded as
-                      timeouts by the execution engine.
-                    </p>
-                  </div>
                 </div>
               </div>
 
-              {/* Error */}
+              {/* Error message */}
               <AnimatePresence>
                 {error && (
                   <motion.div
@@ -389,7 +398,8 @@ export default function NewProjectPage() {
                   type="button"
                   onClick={() => navigate("/dashboard/projects")}
                   whileTap={{ scale: 0.98 }}
-                  className="min-h-11 rounded-lg border border-[#303640] bg-[#171c23] px-5 py-2.5 text-sm font-medium text-[#dce2ea] transition-colors hover:bg-[#202731]"
+                  disabled={saving}
+                  className="min-h-11 rounded-lg border border-[#303640] bg-[#171c23] px-5 py-2.5 text-sm font-medium text-[#dce2ea] transition-colors hover:bg-[#202731] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
                 </motion.button>
@@ -397,8 +407,12 @@ export default function NewProjectPage() {
                 <motion.button
                   type="submit"
                   disabled={saving || created}
-                  whileHover={!saving && !created ? { y: -2 } : {}}
-                  whileTap={!saving && !created ? { scale: 0.98 } : {}}
+                  whileHover={
+                    !saving && !created ? { y: -2 } : {}
+                  }
+                  whileTap={
+                    !saving && !created ? { scale: 0.98 } : {}
+                  }
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#80e8bf] px-5 py-2.5 text-sm font-semibold text-[#0b0d0f] transition-colors hover:bg-[#a8f5d4] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {created ? (
@@ -434,7 +448,9 @@ export default function NewProjectPage() {
             <div className="rounded-xl border border-[#252c35] bg-[#101419] p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Info size={16} className="text-[#80e8bf]" />
-                <h2 className="text-sm font-semibold">Before you begin</h2>
+                <h2 className="text-sm font-semibold">
+                  Before you begin
+                </h2>
               </div>
 
               <div className="space-y-4">
@@ -442,27 +458,32 @@ export default function NewProjectPage() {
                   {
                     number: "01",
                     title: "Create the project",
-                    detail: "Choose a unique project name and runtime.",
+                    detail:
+                      "Choose a project name, language, and framework.",
                   },
                   {
                     number: "02",
                     title: "Add source code",
-                    detail: "Connect or upload the files you want to test.",
+                    detail:
+                      "Connect or upload the files you want to test.",
                   },
                   {
                     number: "03",
                     title: "Verify behavior",
-                    detail: "Generate candidates and execute your tests.",
+                    detail:
+                      "Generate candidates and execute your tests.",
                   },
                 ].map((step) => (
                   <div key={step.number} className="flex gap-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#29342f] bg-[#17231e] text-[10px] font-semibold text-[#80e8bf]">
                       {step.number}
                     </span>
+
                     <div>
                       <p className="text-xs font-medium text-[#dce2ea]">
                         {step.title}
                       </p>
+
                       <p className="mt-1 text-xs leading-5 text-[#8292aa]">
                         {step.detail}
                       </p>
@@ -473,13 +494,18 @@ export default function NewProjectPage() {
             </div>
 
             <div className="rounded-xl border border-[#285541]/60 bg-[#12251e]/40 p-5">
-              <Sparkles size={18} className="mb-3 text-[#80e8bf]" />
+              <Sparkles
+                size={18}
+                className="mb-3 text-[#80e8bf]"
+              />
+
               <h2 className="text-sm font-semibold">
                 Evidence over green checkmarks.
               </h2>
+
               <p className="mt-2 text-xs leading-6 text-[#a3b1c7]">
-                Veritest is designed to evaluate whether tests expose bugs,
-                not simply whether generated tests pass.
+                Veritest is designed to evaluate whether tests expose
+                bugs, not simply whether generated tests pass.
               </p>
             </div>
           </motion.aside>
