@@ -1,7 +1,6 @@
 
 const { z } = require("zod");
 
-// Schema for one AI-generated test case.
 const aiTestCaseSchema = z.object({
   title: z
     .string()
@@ -12,22 +11,16 @@ const aiTestCaseSchema = z.object({
   description: z
     .string()
     .trim()
-    .max(500),
+    .max(500)
+    .optional(),
 
   testCode: z
     .string()
     .trim()
-    .min(1),
-
-  sourceFile: z
-    .string()
-    .trim()
     .min(1)
-    .max(255)
-    .nullable(),
-});
+    .max(10000),
+}).strict();
 
-// Schema for the complete AI response.
 const aiTestCasesResponseSchema = z.object({
   testCases: z
     .array(aiTestCaseSchema)
