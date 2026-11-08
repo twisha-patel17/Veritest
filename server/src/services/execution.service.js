@@ -18,7 +18,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
     throw new Error("Test run not found");
   }
 
-  // 2. Fetch project test cases.
+  // 2. Fetch only approved test cases.
   const testCases = await prisma.testCase.findMany({
     where: {
       projectId,
@@ -33,7 +33,30 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
     throw new Error("No test cases found");
   }
 
-  // 3. Acquire execution lock atomically.
+  // 3. Fetch source files required by the approved test cases.
+  const filePaths = [
+    ...new Set(
+      testCases
+        .map((testCase) => testCase.sourceFile)
+        .filter(Boolean)
+    ),
+  ];
+
+  const sourceFiles = await prisma.sourceFile.findMany({
+    where: {
+      projectId,
+      filePath: {
+        in: filePaths,
+      },
+    },
+  });
+
+  // Create a lookup map: file path -> source code.
+  const sourceFileMap = new Map(
+    sourceFiles.map((file) => [file.filePath, file.content])
+  );
+
+  // 4. Acquire execution lock atomically.
   const lock = await prisma.testRun.updateMany({
     where: {
       id: testRunId,
@@ -65,14 +88,29 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
     let errorTests = 0;
     let totalDuration = 0;
 
-    // 4. Execute test cases sequentially.
+    // 5. Execute approved test cases sequentially.
     for (const testCase of testCases) {
       let result;
 
       try {
-        result = await executeTestCase(testCase.testCode);
+        // Find the source code associated with this test case.
+        const sourceCode = sourceFileMap.get(testCase.sourceFile);
 
-        // 5. Validate test runner output.
+        if (!sourceCode) {
+          throw new Error(
+            `Source file not found: ${
+              testCase.sourceFile || "No source file specified"
+            }`
+          );
+        }
+
+        // Execute source code together with its test code.
+        result = await executeTestCase({
+          sourceCode,
+          testCode: testCase.testCode,
+        });
+
+        // 6. Validate test runner output.
         const validStatuses = [
           "PASSED",
           "FAILED",
@@ -89,7 +127,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
           );
         }
       } catch (error) {
-        // 6. Handle provider or runner failures.
+        // 7. Handle provider or runner failures.
         result = {
           status: "ERROR",
           duration: null,
@@ -101,7 +139,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
         };
       }
 
-      // 7. Aggregate execution duration.
+      // 8. Aggregate execution duration.
       if (
         typeof result.duration === "number" &&
         Number.isFinite(result.duration) &&
@@ -110,7 +148,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
         totalDuration += result.duration;
       }
 
-      // 8. Update execution counters.
+      // 9. Update execution counters.
       switch (result.status) {
         case "PASSED":
           passedTests++;
@@ -129,7 +167,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
           break;
       }
 
-      // 9. Persist individual test result.
+      // 10. Persist individual test result.
       await prisma.testResult.upsert({
         where: {
           testRunId_testCaseId: {
@@ -157,14 +195,14 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
         },
       });
     }
-    const finalStatus = "COMPLETED";
 
+    // 11. Mark the TestRun as completed.
     const completedRun = await prisma.testRun.update({
       where: {
         id: testRunId,
       },
       data: {
-        status: finalStatus,
+        status: "COMPLETED",
         totalTests: testCases.length,
         passedTests,
         failedTests: failedTests + errorTests,
