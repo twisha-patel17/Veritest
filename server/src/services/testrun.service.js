@@ -21,6 +21,7 @@ const createTestRun = async (projectId, userId) => {
   const totalTests = await prisma.testCase.count({
     where: {
       projectId,
+      status: "APPROVED",
     },
   });
 

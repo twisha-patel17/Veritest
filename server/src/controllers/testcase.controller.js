@@ -26,11 +26,12 @@ const updateTestCaseSchema = z.object({
   sourceFile: z.string().trim().max(255).nullable().optional(),
 
   origin: z.string().trim().max(20).optional(),
+
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 }).refine(
   (data) => Object.keys(data).length > 0,
   { message: "At least one field is required" }
 );
-
 // Create test case
 const createTestCase = async (req, res, next) => {
   try {

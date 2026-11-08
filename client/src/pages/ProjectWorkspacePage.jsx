@@ -14,6 +14,10 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { getProjectById } from "../services/projectService";
 import { createSourceFile } from "../services/sourceFileService";
+import {
+  getTestCases,
+  updateTestCase,
+} from "../services/testcaseService";
 
 const springTransition = {
   type: "spring",
@@ -63,15 +67,23 @@ export default function ProjectWorkspacePage() {
         setLoading(true);
         setError("");
 
-        const response = await getProjectById(projectId);
+        const [projectResponse, testCaseResponse] = await Promise.all([
+          getProjectById(projectId),
+          getTestCases(projectId),
+        ]);
 
-        if (!response.success || !response.project) {
+        if (!projectResponse.success || !projectResponse.project) {
           throw new Error("Unable to load project.");
+        }
+
+        if (!testCaseResponse.success) {
+          throw new Error("Unable to load saved test cases.");
         }
 
         if (cancelled) return;
 
-        const loadedProject = response.project;
+        const loadedProject = projectResponse.project;
+        const savedTestCases = testCaseResponse.testCases || [];
         const files = loadedProject.sourceFiles || [];
 
         setProject(loadedProject);
@@ -83,8 +95,19 @@ export default function ProjectWorkspacePage() {
           language: loadedProject.language || "javascript",
         }));
 
-        // Test cases will be connected to the real API next.
-        setCandidates([]);
+        // Restore saved test cases and their review decisions.
+        setCandidates(
+          savedTestCases.map((testCase) => ({
+            ...testCase,
+            selected: false,
+            decision:
+              testCase.status === "APPROVED"
+                ? "Approved"
+                : testCase.status === "REJECTED"
+                  ? "Rejected"
+                  : "",
+          }))
+        );
       } catch (err) {
         if (cancelled) return;
 
@@ -112,11 +135,12 @@ export default function ProjectWorkspacePage() {
   );
 
   const selectedCount = candidates.filter(
-    (candidate) => candidate.selected && !candidate.decision
+    (candidate) =>
+      candidate.selected && candidate.status === "PENDING"
   ).length;
 
   const approvedCount = candidates.filter(
-    (candidate) => candidate.decision === "Approved"
+    (candidate) => candidate.status === "APPROVED"
   ).length;
 
   const updateCandidate = (id, changes) => {
@@ -182,21 +206,79 @@ export default function ProjectWorkspacePage() {
     }
   };
 
-  const approveSelected = () => {
-    if (!selectedCount) {
-      setNotice("Select at least one undecided candidate.");
+  // Persist a test case review decision through the backend API.
+  const saveReviewDecision = async (candidate, status) => {
+    try {
+      setNotice("");
+
+      const response = await updateTestCase(
+        projectId,
+        candidate.id,
+        { status }
+      );
+
+      if (!response.success || !response.testCase) {
+        throw new Error("Unable to update this test case.");
+      }
+
+      const savedTestCase = response.testCase;
+
+      setCandidates((current) =>
+        current.map((item) =>
+          item.id === candidate.id
+            ? {
+                ...savedTestCase,
+                selected: false,
+                decision:
+                  savedTestCase.status === "APPROVED"
+                    ? "Approved"
+                    : savedTestCase.status === "REJECTED"
+                      ? "Rejected"
+                      : "",
+              }
+            : item
+        )
+      );
+
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        message:
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to update test case.",
+      };
+    }
+  };
+
+  const approveSelected = async () => {
+    const selectedCandidates = candidates.filter(
+      (candidate) =>
+        candidate.selected && candidate.status === "PENDING"
+    );
+
+    if (!selectedCandidates.length) {
+      setNotice("Select at least one pending candidate.");
       return;
     }
 
-    setCandidates((current) =>
-      current.map((candidate) =>
-        candidate.selected && !candidate.decision
-          ? { ...candidate, decision: "Approved" }
-          : candidate
+    const results = await Promise.all(
+      selectedCandidates.map((candidate) =>
+        saveReviewDecision(candidate, "APPROVED")
       )
     );
 
-    setNotice(`${selectedCount} candidate(s) approved.`);
+    const approved = results.filter((result) => result.success).length;
+    const failed = results.length - approved;
+
+    if (failed === 0) {
+      setNotice(`${approved} candidate(s) approved and saved.`);
+    } else {
+      setNotice(
+        `${approved} candidate(s) approved. ${failed} could not be updated. ${results.find((result) => !result.success)?.message || ""}`
+      );
+    }
   };
 
   const generateTests = () => {
@@ -222,37 +304,31 @@ export default function ProjectWorkspacePage() {
   };
 
   const toggleSelectAll = () => {
-    const undecided = candidates.filter(
-      (candidate) => !candidate.decision
+    const pendingCandidates = candidates.filter(
+      (candidate) => candidate.status === "PENDING"
     );
 
     const allSelected =
-      undecided.length > 0 &&
-      undecided.every((candidate) => candidate.selected);
+      pendingCandidates.length > 0 &&
+      pendingCandidates.every((candidate) => candidate.selected);
 
     setCandidates((current) =>
       current.map((candidate) =>
-        candidate.decision
+        candidate.status !== "PENDING"
           ? candidate
           : { ...candidate, selected: !allSelected }
       )
     );
   };
 
-  const rejectCandidate = (candidate) => {
-    setCandidates((current) =>
-      current.map((item) =>
-        item.id === candidate.id
-          ? {
-              ...item,
-              decision: "Rejected",
-              selected: false,
-            }
-          : item
-      )
-    );
+  const rejectCandidate = async (candidate) => {
+    const result = await saveReviewDecision(candidate, "REJECTED");
 
-    setNotice(`Rejected "${candidate.title}".`);
+    if (result.success) {
+      setNotice(`Rejected "${candidate.title}" and saved the decision.`);
+    } else {
+      setNotice(result.message);
+    }
   };
 
   // Loading state.
@@ -510,7 +586,7 @@ export default function ProjectWorkspacePage() {
               whileTap={{ scale: 0.96 }}
               transition={{ duration: 0.15 }}
               onClick={toggleSelectAll}
-              disabled={!candidates.length}
+              disabled={!candidates.some((candidate) => candidate.status === "PENDING")}
               className="rounded-md border border-[#29313b] px-3 py-2 text-xs transition-colors hover:bg-[#1a2027] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Select all
@@ -540,7 +616,7 @@ export default function ProjectWorkspacePage() {
                       <input
                         type="checkbox"
                         checked={Boolean(candidate.selected)}
-                        disabled={Boolean(candidate.decision)}
+                        disabled={candidate.status !== "PENDING"}
                         onChange={(event) =>
                           updateCandidate(candidate.id, {
                             selected: event.target.checked,
@@ -555,30 +631,42 @@ export default function ProjectWorkspacePage() {
                           {candidate.title}
                         </h3>
 
-                        <p className="mt-1 break-words font-mono text-xs leading-5 text-[#a2b1c5]">
-                          {candidate.input} → {candidate.expected}
-                        </p>
+                        {candidate.description && (
+                          <p className="mt-1 break-words text-xs leading-5 text-[#a2b1c5]">
+                            {candidate.description}
+                          </p>
+                        )}
 
-                        <div className="mt-2 flex flex-wrap gap-2">
+                        {candidate.sourceFile && (
+                          <p className="mt-2 text-[11px] text-[#65758a]">
+                            Source: {candidate.sourceFile}
+                          </p>
+                        )}
+
+                        <pre className="mt-3 max-h-52 overflow-auto rounded-md border border-[#252c35] bg-[#0b0d0f] p-3 text-xs leading-5 text-[#c6d3e2]">
+                          <code>{candidate.testCode}</code>
+                        </pre>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
                           <span className="rounded-full border border-[#4b86c5] px-2 py-0.5 text-[11px] text-[#91c4ff]">
-                            {candidate.status}
+                            {candidate.origin || "MANUAL"}
                           </span>
 
-                          {candidate.decision && (
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                                candidate.decision === "Approved"
-                                  ? "border-[#477b65] text-[#80e8bf]"
-                                  : "border-red-400/40 text-red-300"
-                              }`}
-                            >
-                              {candidate.decision}
-                            </span>
-                          )}
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                              candidate.status === "APPROVED"
+                                ? "border-[#477b65] text-[#80e8bf]"
+                                : candidate.status === "REJECTED"
+                                  ? "border-red-400/40 text-red-300"
+                                  : "border-[#4b86c5] text-[#91c4ff]"
+                            }`}
+                          >
+                            {candidate.status}
+                          </span>
                         </div>
                       </div>
 
-                      {!candidate.decision && (
+                      {candidate.status === "PENDING" && (
                         <motion.button
                           type="button"
                           whileHover={{ scale: 1.04 }}

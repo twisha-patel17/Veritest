@@ -22,6 +22,7 @@ const executeTestRun = async ({ testRunId, projectId, userId }) => {
   const testCases = await prisma.testCase.findMany({
     where: {
       projectId,
+      status: "APPROVED",
     },
     orderBy: {
       createdAt: "asc",
