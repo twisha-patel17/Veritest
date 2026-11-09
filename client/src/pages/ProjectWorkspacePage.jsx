@@ -18,6 +18,10 @@ import {
   getTestCases,
   updateTestCase,
 } from "../services/testcaseService";
+import {
+  createTestRun,
+  executeTestRun,
+} from "../services/testrunService";
 
 const springTransition = {
   type: "spring",
@@ -50,6 +54,8 @@ export default function ProjectWorkspacePage() {
   // Add source file modal state.
   const [showAddFile, setShowAddFile] = useState(false);
   const [savingFile, setSavingFile] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [latestTestRun, setLatestTestRun] = useState(null);
 
   const [fileForm, setFileForm] = useState({
     fileName: "",
@@ -292,15 +298,58 @@ export default function ProjectWorkspacePage() {
     );
   };
 
-  const executeApproved = () => {
+  const executeApproved = async () => {
     if (!approvedCount) {
       setNotice("Approve test candidates before executing tests.");
       return;
     }
 
-    setNotice(
-      "Test execution will be connected to the execution API next."
-    );
+    try {
+      setIsExecuting(true);
+      setNotice("Creating a new test run...");
+
+      // Step 1: Create a new TestRun.
+      const createResponse = await createTestRun(projectId);
+
+      if (!createResponse.success || !createResponse.testRun?.id) {
+        throw new Error(
+          createResponse.message || "Failed to create test run."
+        );
+      }
+
+      const testRunId = createResponse.testRun.id;
+
+      setNotice("Executing approved test cases...");
+
+      // Step 2: Execute the newly created TestRun.
+      const executionResponse = await executeTestRun(
+        projectId,
+        testRunId
+      );
+
+      if (!executionResponse.success || !executionResponse.testRun) {
+        throw new Error(
+          executionResponse.message || "Test execution failed."
+        );
+      }
+
+      // Step 3: Read the execution summary.
+      const testRun = executionResponse.testRun;
+      setLatestTestRun(testRun);
+
+      setNotice(
+        `Execution completed! ${testRun.passedTests} passed, ` +
+          `${testRun.failedTests} failed, out of ${testRun.totalTests} tests.`
+      );
+    } catch (err) {
+      setNotice(
+        err.response?.data?.message ||
+          err.message ||
+          "Something went wrong during test execution."
+      );
+    } finally {
+      setIsExecuting(false);
+    }
   };
 
   const toggleSelectAll = () => {
@@ -426,10 +475,20 @@ export default function ProjectWorkspacePage() {
             whileTap={{ scale: 0.97 }}
             transition={{ duration: 0.18 }}
             onClick={executeApproved}
-            className="inline-flex items-center gap-2 rounded-md bg-[#80e8bf] px-3 py-2.5 text-sm font-medium text-[#0b0d0f] transition-colors hover:bg-[#9af0cc]"
+            disabled={isExecuting || !approvedCount}
+            className="inline-flex items-center gap-2 rounded-md bg-[#80e8bf] px-3 py-2.5 text-sm font-medium text-[#0b0d0f] transition-colors hover:bg-[#9af0cc] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Play size={15} />
-            Execute approved
+            {isExecuting ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0b0d0f]/30 border-t-[#0b0d0f]" />
+                Executing...
+              </>
+            ) : (
+              <>
+                <Play size={15} />
+                Execute approved
+              </>
+            )}
           </motion.button>
         </div>
       </motion.div>
@@ -448,6 +507,169 @@ export default function ProjectWorkspacePage() {
           >
             {notice}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Latest execution results */}
+      <AnimatePresence>
+        {latestTestRun && (
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className="mb-5 overflow-hidden rounded-xl border border-[#252c35] bg-[#101419]"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#252c35] p-4">
+              <div>
+                <h2 className="text-sm font-semibold">Latest execution</h2>
+                <p className="mt-1 text-xs text-[#8292aa]">
+                  {latestTestRun.createdAt
+                    ? `Run started ${new Date(latestTestRun.createdAt).toLocaleString()}`
+                    : "Most recent test run"}
+                </p>
+              </div>
+
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                  latestTestRun.status === "COMPLETED"
+                    ? "border-[#477b65] text-[#80e8bf]"
+                    : latestTestRun.status === "FAILED"
+                      ? "border-red-400/40 text-red-300"
+                      : "border-[#4b86c5] text-[#91c4ff]"
+                }`}
+              >
+                {latestTestRun.status}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-b border-[#252c35] p-4 sm:grid-cols-4">
+              {[
+                { label: "Total tests", value: latestTestRun.totalTests ?? 0 },
+                { label: "Passed", value: latestTestRun.passedTests ?? 0 },
+                { label: "Failed", value: latestTestRun.failedTests ?? 0 },
+                {
+                  label: "Duration",
+                  value:
+                    latestTestRun.duration != null
+                      ? `${latestTestRun.duration} ms`
+                      : "—",
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-lg border border-[#252c35] bg-[#0b0d0f] p-3"
+                >
+                  <p className="text-[11px] text-[#8292aa]">{item.label}</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-[#f1f3f5]">
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#8292aa]">
+                Test results
+              </h3>
+
+              {latestTestRun.results?.length > 0 ? (
+                <div className="space-y-3">
+                  {latestTestRun.results.map((result, index) => {
+                    const passed = result.status === "PASSED";
+
+                    return (
+                      <article
+                        key={result.id || `${result.testCaseId}-${index}`}
+                        className="rounded-lg border border-[#252c35] bg-[#0b0d0f] p-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="break-words text-sm font-medium text-[#dce2ea]">
+                              {result.testCase?.title || `Test ${index + 1}`}
+                            </h4>
+                            {result.testCase?.sourceFile && (
+                              <p className="mt-1 text-[11px] text-[#65758a]">
+                                {result.testCase.sourceFile}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-3">
+                            <span className="text-[11px] tabular-nums text-[#8292aa]">
+                              {result.duration != null
+                                ? `${result.duration} ms`
+                                : "—"}
+                            </span>
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                                passed
+                                  ? "border-[#477b65] text-[#80e8bf]"
+                                  : "border-red-400/40 text-red-300"
+                              }`}
+                            >
+                              {result.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        {(result.errorMessage || result.stderr || result.stdout) && (
+                          <details className="mt-3 border-t border-[#252c35] pt-2">
+                            <summary className="cursor-pointer text-xs text-[#91c4ff] hover:text-[#b4d7ff]">
+                              View execution details
+                            </summary>
+
+                            {result.errorMessage && (
+                              <div className="mt-3">
+                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-red-300">
+                                  Error
+                                </p>
+                                <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-[#171014] p-3 text-xs leading-5 text-red-200">
+                                  {result.errorMessage}
+                                </pre>
+                              </div>
+                            )}
+
+                            {result.stderr && (
+                              <div className="mt-3">
+                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-red-300">
+                                  Stderr
+                                </p>
+                                <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-[#171014] p-3 text-xs leading-5 text-red-200">
+                                  {result.stderr}
+                                </pre>
+                              </div>
+                            )}
+
+                            {result.stdout && (
+                              <div className="mt-3">
+                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#8292aa]">
+                                  Stdout
+                                </p>
+                                <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-[#101419] p-3 text-xs leading-5 text-[#c6d3e2]">
+                                  {result.stdout}
+                                </pre>
+                              </div>
+                            )}
+
+                            {result.exitCode != null && (
+                              <p className="mt-2 text-[11px] text-[#65758a]">
+                                Exit code: {result.exitCode}
+                              </p>
+                            )}
+                          </details>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-[#29313b] px-4 py-6 text-center text-xs text-[#8292aa]">
+                  This run did not return individual test result details.
+                </p>
+              )}
+            </div>
+          </motion.section>
         )}
       </AnimatePresence>
 

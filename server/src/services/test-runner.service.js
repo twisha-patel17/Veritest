@@ -66,6 +66,7 @@ const sandboxProcess = {
 
 const sandbox = {
   require: customRequire,
+  assert: trackedAssert,
   console,
   process: sandboxProcess,
   module: userModule,
