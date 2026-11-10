@@ -21,6 +21,8 @@ import {
 import {
   createTestRun,
   executeTestRun,
+  getTestRuns,
+  getTestRunById,
 } from "../services/testrunService";
 
 const springTransition = {
@@ -56,6 +58,58 @@ export default function ProjectWorkspacePage() {
   const [savingFile, setSavingFile] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [latestTestRun, setLatestTestRun] = useState(null);
+  const [testRuns, setTestRuns] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [loadingRunId, setLoadingRunId] = useState(null);
+  const [selectedRunId, setSelectedRunId] = useState(null);
+
+  const refreshTestRunHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      setHistoryError("");
+
+      const response = await getTestRuns(projectId);
+
+      if (!response.success) {
+        throw new Error("Unable to load test run history.");
+      }
+
+      setTestRuns(response.testRuns || []);
+    } catch (err) {
+      setHistoryError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to load test run history."
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const selectTestRun = async (testRunId) => {
+    try {
+      setLoadingRunId(testRunId);
+      setHistoryError("");
+
+      const response = await getTestRunById(projectId, testRunId);
+
+      if (!response.success || !response.testRun) {
+        throw new Error("Unable to load this test run.");
+      }
+
+      setLatestTestRun(response.testRun);
+      setSelectedRunId(testRunId);
+    } catch (err) {
+      setHistoryError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to load this test run."
+      );
+    } finally {
+      setLoadingRunId(null);
+    }
+  };
 
   const [fileForm, setFileForm] = useState({
     fileName: "",
@@ -73,10 +127,18 @@ export default function ProjectWorkspacePage() {
         setLoading(true);
         setError("");
 
-        const [projectResponse, testCaseResponse] = await Promise.all([
-          getProjectById(projectId),
-          getTestCases(projectId),
-        ]);
+        const [projectResponse, testCaseResponse, historyResponse] =
+          await Promise.all([
+            getProjectById(projectId),
+            getTestCases(projectId),
+            getTestRuns(projectId).catch((err) => ({
+              success: false,
+              message:
+                err.response?.data?.message ||
+                err.message ||
+                "Failed to load test run history.",
+            })),
+          ]);
 
         if (!projectResponse.success || !projectResponse.project) {
           throw new Error("Unable to load project.");
@@ -95,6 +157,15 @@ export default function ProjectWorkspacePage() {
         setProject(loadedProject);
         setSourceFiles(files);
         setActiveFileId(files[0]?.id || null);
+
+        if (historyResponse.success) {
+          setTestRuns(historyResponse.testRuns || []);
+          setHistoryError("");
+        } else {
+          setHistoryError(
+            historyResponse.message || "Failed to load test run history."
+          );
+        }
 
         setFileForm((current) => ({
           ...current,
@@ -336,6 +407,19 @@ export default function ProjectWorkspacePage() {
       // Step 3: Read the execution summary.
       const testRun = executionResponse.testRun;
       setLatestTestRun(testRun);
+      setSelectedRunId(testRun.id);
+
+      // Refresh the history and load the complete result records.
+      await refreshTestRunHistory();
+
+      try {
+        const detailResponse = await getTestRunById(projectId, testRun.id);
+        if (detailResponse.success && detailResponse.testRun) {
+          setLatestTestRun(detailResponse.testRun);
+        }
+      } catch {
+        // The execution response remains available if the detail request fails.
+      }
 
       setNotice(
         `Execution completed! ${testRun.passedTests} passed, ` +
@@ -510,6 +594,103 @@ export default function ProjectWorkspacePage() {
         )}
       </AnimatePresence>
 
+      {/* Test run history */}
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="mb-5 overflow-hidden rounded-xl border border-[#252c35] bg-[#101419]"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#252c35] p-4">
+          <div>
+            <h2 className="text-sm font-semibold">Test run history</h2>
+            <p className="mt-1 text-xs text-[#8292aa]">
+              {testRuns.length} saved run(s), newest first
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={refreshTestRunHistory}
+            disabled={historyLoading}
+            className="rounded-md border border-[#29313b] px-3 py-2 text-xs text-[#a3b1c7] transition-colors hover:bg-[#1a2027] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {historyLoading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+
+        {historyError && (
+          <p className="border-b border-[#252c35] px-4 py-3 text-xs text-red-300">
+            {historyError}
+          </p>
+        )}
+
+        {testRuns.length > 0 ? (
+          <div className="divide-y divide-[#252c35]">
+            {testRuns.map((run, index) => {
+              const isSelected = selectedRunId === run.id;
+              const isCompleted = run.status === "COMPLETED";
+              const isFailed = run.status === "FAILED";
+
+              return (
+                <button
+                  key={run.id}
+                  type="button"
+                  onClick={() => selectTestRun(run.id)}
+                  disabled={loadingRunId !== null}
+                  className={`flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[#171d23] disabled:cursor-wait ${
+                    isSelected ? "bg-[#17221e]" : ""
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#29313b] text-[11px] text-[#8292aa]">
+                      {testRuns.length - index}
+                    </span>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-[#dce2ea]">
+                        Run {testRuns.length - index}
+                        {isSelected ? " · Selected" : ""}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#65758a]">
+                        {run.createdAt
+                          ? new Date(run.createdAt).toLocaleString()
+                          : "Date unavailable"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-[11px] tabular-nums text-[#8292aa]">
+                      {run.passedTests ?? 0} passed · {run.failedTests ?? 0} failed · {run.totalTests ?? 0} total
+                    </span>
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                        isCompleted
+                          ? "border-[#477b65] text-[#80e8bf]"
+                          : isFailed
+                            ? "border-red-400/40 text-red-300"
+                            : "border-[#4b86c5] text-[#91c4ff]"
+                      }`}
+                    >
+                      {loadingRunId === run.id ? "LOADING" : run.status}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="px-4 py-7 text-center text-xs text-[#8292aa]">
+            {historyLoading
+              ? "Loading test run history..."
+              : historyError
+                ? "Test run history is unavailable right now."
+                : "No test runs yet. Execute approved tests to create your first run."}
+          </p>
+        )}
+      </motion.section>
+
       {/* Latest execution results */}
       <AnimatePresence>
         {latestTestRun && (
@@ -522,7 +703,7 @@ export default function ProjectWorkspacePage() {
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#252c35] p-4">
               <div>
-                <h2 className="text-sm font-semibold">Latest execution</h2>
+                <h2 className="text-sm font-semibold">Execution results</h2>
                 <p className="mt-1 text-xs text-[#8292aa]">
                   {latestTestRun.createdAt
                     ? `Run started ${new Date(latestTestRun.createdAt).toLocaleString()}`

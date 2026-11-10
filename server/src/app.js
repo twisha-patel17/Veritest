@@ -10,6 +10,7 @@ const testcaseRoutes = require("./routes/testcase.routes");
 const testrunRoutes = require("./routes/testrun.routes");
 const executionRoutes = require("./routes/execution.routes");
 const sourceFileRoutes = require("./routes/sourcefile.routes");
+const aiTestCaseRoutes = require("./routes/ai-testcase.routes");
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api", testcaseRoutes);
 app.use("/api", testrunRoutes);
 app.use("/api", executionRoutes);
+app.use("/api", aiTestCaseRoutes);
 app.use("/api/projects/:projectId/files", sourceFileRoutes);
 
 app.use(errorMiddleware);
