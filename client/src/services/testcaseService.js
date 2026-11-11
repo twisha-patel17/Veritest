@@ -45,3 +45,15 @@ export const deleteTestCase = async (projectId, testCaseId) => {
 
   return response.data;
 };
+// Generate AI test cases for a source file.
+export const generateAITestCases = async (
+  projectId,
+  sourceFileId
+) => {
+  const response = await api.post(
+    `/projects/${projectId}/ai/generate-tests`,
+    { sourceFileId }
+  );
+
+  return response.data;
+};

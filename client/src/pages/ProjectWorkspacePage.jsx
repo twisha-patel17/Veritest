@@ -17,6 +17,7 @@ import { createSourceFile } from "../services/sourceFileService";
 import {
   getTestCases,
   updateTestCase,
+  generateAITestCases,
 } from "../services/testcaseService";
 import {
   createTestRun,
@@ -57,6 +58,7 @@ export default function ProjectWorkspacePage() {
   const [showAddFile, setShowAddFile] = useState(false);
   const [savingFile, setSavingFile] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [latestTestRun, setLatestTestRun] = useState(null);
   const [testRuns, setTestRuns] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -358,15 +360,54 @@ export default function ProjectWorkspacePage() {
     }
   };
 
-  const generateTests = () => {
-    if (!sourceFiles.length) {
-      setNotice("Add a source file before generating tests.");
+  const generateTests = async () => {
+    if (!activeFileId) {
+      setNotice("Select a source file before generating tests.");
       return;
     }
 
-    setNotice(
-      "Test generation will be connected to the GenAI service next."
-    );
+    try {
+      setIsGenerating(true);
+      setNotice("Generating test candidates with AI...");
+
+      const response = await generateAITestCases(
+        projectId,
+        activeFileId
+      );
+
+      if (!response.success) {
+        throw new Error(
+          response.message || "Failed to generate test cases."
+        );
+      }
+
+      const generatedCandidates = (response.testCases || []).map(
+        (testCase) => ({
+          ...testCase,
+          selected: false,
+          decision: "",
+        })
+      );
+
+      setCandidates((current) => [
+        ...current,
+        ...generatedCandidates,
+      ]);
+
+      setNotice(
+        generatedCandidates.length > 0
+          ? `${generatedCandidates.length} AI-generated test candidates added successfully. Review them before approval.`
+          : "AI generation completed, but no test candidates were returned."
+      );
+    } catch (err) {
+      setNotice(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to generate AI test cases."
+      );
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const executeApproved = async () => {
@@ -547,10 +588,20 @@ export default function ProjectWorkspacePage() {
             whileTap={{ scale: 0.97 }}
             transition={{ duration: 0.18 }}
             onClick={generateTests}
-            className="inline-flex items-center gap-2 rounded-md border border-[#29313b] bg-[#151a20] px-3 py-2.5 text-sm transition-colors hover:border-[#80e8bf]/50"
+            disabled={isGenerating || !activeFileId}
+            className="inline-flex items-center gap-2 rounded-md border border-[#29313b] bg-[#151a20] px-3 py-2.5 text-sm transition-colors hover:border-[#80e8bf]/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Sparkles size={16} />
-            Generate tests
+            {isGenerating ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#8292aa]/30 border-t-[#80e8bf]" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} />
+                Generate tests
+              </>
+            )}
           </motion.button>
 
           <motion.button
