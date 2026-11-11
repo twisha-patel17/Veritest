@@ -57,18 +57,18 @@ REQUIREMENTS:
 }
 `;
 
-  // 3. send the prompt to gemini
+  // 3. Send the prompt to Gemini.
   const response = await genAI.models.generateContent({
-    model: "gemini-3.1-flash",
-    content: prompt,
+    model: "gemini-3.8-flash",
+    contents: prompt,
     config: {
-        responseMimeType: "application/json",
-    }
+      responseMimeType: "application/json",
+    },
   });
 
   const generatedText = response.text;
 
-    // 4. Check whether Gemini returned any content.
+  // 4. Check whether Gemini returned any content.
   if (!generatedText) {
     throw new Error("Gemini returned an empty response");
   }
@@ -91,7 +91,7 @@ REQUIREMENTS:
     throw new Error("Gemini returned an invalid test case structure");
   }
 
-    // 7. Save generated test cases in the database.
+  // 7. Save generated test cases in the database.
   const savedTestCases = await Promise.all(
     validation.data.testCases.map((testCase) =>
       testcaseService.createTestCase(projectId, userId, {
@@ -105,7 +105,6 @@ REQUIREMENTS:
   );
 
   return savedTestCases;
-
 };
 
 module.exports = {
