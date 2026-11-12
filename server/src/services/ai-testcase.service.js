@@ -42,7 +42,7 @@ REQUIREMENTS:
 4. Do not invent functions, parameters, or behavior.
 5. Do not modify the original source code.
 6. Each testCode must contain executable test code.
-7. Generate at most 10 distinct test cases.
+7. Generate at most 5 distinct test cases.
 8. Avoid duplicate test scenarios.
 9. Return only valid JSON matching this structure:
 
@@ -55,16 +55,38 @@ REQUIREMENTS:
     }
   ]
 }
+10. Keep each test case concise. Avoid unnecessary explanations and comments.
 `;
 
   // 3. Send the prompt to Gemini.
-  const response = await genAI.models.generateContent({
-    model: "gemini-3.8-flash",
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-    },
-  });
+  let response;
+
+  try {
+    console.log("Sending request to Gemini...");
+
+    response = await genAI.models.generateContent({
+      model: "gemini-3.5-flash-lite",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        maxOutputTokens: 4096,
+      },
+    });
+
+    console.log("Gemini response received successfully.");
+  } catch (error) {
+    console.error("Gemini generation error:", error);
+
+    if (error.status === 504) {
+      throw new Error(
+        "Gemini took too long to respond. Please try again."
+      );
+    }
+
+    throw new Error(
+      error.message || "Gemini test generation failed."
+    );
+  }
 
   const generatedText = response.text;
 
@@ -88,7 +110,11 @@ REQUIREMENTS:
   );
 
   if (!validation.success) {
-    throw new Error("Gemini returned an invalid test case structure");
+    console.error("Gemini validation errors:", validation.error);
+
+    throw new Error(
+      "Gemini returned an invalid test case structure"
+    );
   }
 
   // 7. Save generated test cases in the database.
