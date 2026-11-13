@@ -124,6 +124,57 @@ model TestResult {
   testRun  TestRun  @relation(fields: [testRunId], references: [id], onDelete: Cascade)
   testCase TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
 
+  failure Failure?
+
   @@unique([testRunId, testCaseId])
   @@index([testCaseId])
+}
+
+model Failure {
+  id           String @id @default(cuid())
+  testResultId String @unique
+
+  type         String
+  title        String
+  errorMessage String? @db.Text
+  stackTrace   String? @db.Text
+
+  stdout String? @db.Text
+  stderr String? @db.Text
+
+  failingInput String? @db.Text
+  expected     String? @db.Text
+  actual       String? @db.Text
+
+  status String @default("UNCONFIRMED")
+
+  reproductionAttempts ReproductionAttempt[]
+
+  testResult TestResult @relation(fields: [testResultId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ReproductionAttempt {
+  id        String @id @default(cuid())
+  failureId String
+
+  attemptNumber Int
+  status        String
+
+  errorMessage String? @db.Text
+  stackTrace   String? @db.Text
+
+  duration Int?
+
+  failure Failure @relation(fields: [failureId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([failureId, attemptNumber])
+  @@index([failureId])
 }
