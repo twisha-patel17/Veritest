@@ -1,21 +1,18 @@
 
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
-  Activity,
   ArrowLeft,
   CheckCircle2,
   Clock3,
   LoaderCircle,
-  Play,
-  RotateCcw,
   ShieldAlert,
   Terminal,
-  XCircle,
+  AlertTriangle,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 
-import { DEMO_FAILURES } from "../data/failures";
+import { getFailureById } from "../services/failureService";
 
 function StatusBadge({ status }) {
   const reproduced = status === "REPRODUCED";
@@ -29,49 +26,117 @@ function StatusBadge({ status }) {
       }`}
     >
       {reproduced ? <CheckCircle2 size={12} /> : <Clock3 size={12} />}
-      {reproduced ? "Reproduced" : "Observed, not confirmed"}
+      {reproduced ? "Reproduced" : "Unconfirmed"}
     </span>
   );
 }
 
 function CodePanel({ title, children, icon: Icon }) {
+  const hasContent =
+    children !== null &&
+    children !== undefined &&
+    String(children).trim() !== "";
+
   return (
     <section className="min-w-0">
       <div className="mb-2 flex items-center gap-2">
         {Icon && <Icon size={15} className="text-[#80e8bf]" />}
-        <h2 className="text-sm font-semibold text-[#dce2ea]">
-          {title}
-        </h2>
+        <h2 className="text-sm font-semibold text-[#dce2ea]">{title}</h2>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-[#252c35] bg-[#101419] p-3">
         <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[#dce2ea]">
-          {children}
+          {hasContent ? String(children) : "No data available."}
         </pre>
       </div>
     </section>
   );
 }
 
+function formatDate(value) {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Not available";
+
+  return date.toLocaleString();
+}
+
+function formatStatus(value) {
+  if (!value) return "Unknown";
+
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export default function FailureDetailPage() {
   const { failureId } = useParams();
+  const [searchParams] = useSearchParams();
+  const projectId = searchParams.get("projectId");
 
-  const failure = DEMO_FAILURES.find(
-    (item) => item.id === failureId
-  );
+  const [failure, setFailure] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [retrying, setRetrying] = useState(false);
-  const [retryResult, setRetryResult] = useState(null);
+  useEffect(() => {
+    let active = true;
 
-  if (!failure) {
+    const loadFailure = async () => {
+      if (!projectId || !failureId) {
+        setError("The project ID or failure ID is missing.");
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await getFailureById(projectId, failureId);
+
+        if (!active) return;
+
+        setFailure(response.failure || response.data?.failure || null);
+      } catch (err) {
+        if (!active) return;
+
+        setError(
+          err.response?.data?.message ||
+            "Unable to load this failure. It may no longer exist."
+        );
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadFailure();
+
+    return () => {
+      active = false;
+    };
+  }, [projectId, failureId]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-full items-center justify-center gap-3 bg-[#0b0d0f] text-sm text-[#8292aa]">
+        <LoaderCircle size={18} className="animate-spin text-[#80e8bf]" />
+        Loading failure details...
+      </div>
+    );
+  }
+
+  if (error || !failure) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center bg-[#0b0d0f] px-5 text-center text-[#f1f3f5]">
         <ShieldAlert size={32} className="text-amber-400" />
         <h1 className="mt-4 text-xl font-semibold">
-          Failure not found
+          Unable to load failure
         </h1>
-        <p className="mt-2 text-sm text-[#8292aa]">
-          This failure does not exist in the current demo dataset.
+        <p className="mt-2 max-w-md text-sm text-[#8292aa]">
+          {error || "The requested failure could not be found."}
         </p>
         <Link
           to="/dashboard/failures"
@@ -83,28 +148,15 @@ export default function FailureDetailPage() {
     );
   }
 
-  const handleRetry = () => {
-    if (retrying) return;
+  const testResult = failure.testResult || {};
+  const testCase = testResult.testCase || {};
+  const testRun = testResult.testRun || {};
+  const attempts = failure.reproductionAttempts || [];
 
-    setRetrying(true);
-    setRetryResult(null);
-
-    // Demo simulation only. Replace with a backend API request.
-    window.setTimeout(() => {
-      const reproduced =
-        failure.successfulReproductions > 0;
-
-      setRetryResult(
-        reproduced
-          ? "The failure was reproduced in the demo."
-          : "The failure could not be reproduced in the demo."
-      );
-
-      setRetrying(false);
-    }, 1200);
-  };
-
-  const reproduced = failure.status === "REPRODUCED";
+  const sourceFileName =
+    typeof testCase.sourceFile === "string"
+      ? testCase.sourceFile
+      : testCase.sourceFile?.name;
 
   return (
     <motion.main
@@ -114,7 +166,6 @@ export default function FailureDetailPage() {
       className="min-h-full min-w-0 overflow-x-clip bg-[#0b0d0f] px-4 py-6 text-[#f1f3f5] sm:px-6 sm:py-8 lg:px-9"
     >
       <div className="mx-auto max-w-[1500px]">
-
         {/* Header */}
         <motion.header
           initial={{ opacity: 0, y: -14 }}
@@ -130,69 +181,88 @@ export default function FailureDetailPage() {
             Back to failure analysis
           </Link>
 
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0">
-              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-[#8292aa]">
-                <span>acme-platform</span>
-                <span>/</span>
-                <span>{failure.title}</span>
-              </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-[#8292aa]">
+            <span>Failure analysis</span>
+            <span>/</span>
+            <span className="text-[#a3b1c7]">
+              {failure.title || "Failure details"}
+            </span>
+          </div>
 
-              <h1 className="max-w-4xl break-words text-xl font-semibold tracking-tight sm:text-2xl lg:text-3xl">
-                {failure.title}
-              </h1>
+          <h1 className="max-w-4xl break-words text-xl font-semibold tracking-tight sm:text-2xl lg:text-3xl">
+            {failure.title || testCase.title || "Untitled failure"}
+          </h1>
 
-              <p className="mt-2 font-mono text-xs text-[#8292aa]">
-                {failure.functionName} · {failure.failureType} · {failure.runId}
-              </p>
+          <p className="mt-2 text-xs text-[#8292aa]">
+            {testCase.title || "Test case"} · {formatStatus(failure.type)}
+          </p>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <StatusBadge status={failure.status} />
-                <span className="text-xs text-[#8292aa]">
-                  {failure.summary}
-                </span>
-              </div>
-            </div>
-
-            <motion.button
-              type="button"
-              onClick={handleRetry}
-              disabled={retrying}
-              whileHover={!retrying ? { y: -2, scale: 1.02 } : {}}
-              whileTap={!retrying ? { scale: 0.97 } : {}}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#303640] bg-[#151a21] px-4 py-2.5 text-xs font-medium text-[#f1f3f5] transition-colors hover:border-[#80e8bf]/50 hover:text-[#80e8bf] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {retrying ? (
-                <LoaderCircle size={15} className="animate-spin" />
-              ) : (
-                <RotateCcw size={15} />
-              )}
-              {retrying ? "Retrying..." : "Retry reproduction"}
-            </motion.button>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <StatusBadge status={failure.status} />
+            <span className="text-xs text-[#8292aa]">
+              Detected {formatDate(testRun.createdAt)}
+            </span>
           </div>
         </motion.header>
 
-        {/* Retry feedback */}
-        <AnimatePresence>
-          {retryResult && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mb-5 rounded-lg border border-[#303640] bg-[#11151a] px-4 py-3 text-xs text-[#a3b1c7]"
-            >
-              <div className="flex items-center gap-2">
-                <Activity size={15} className="text-[#80e8bf]" />
-                {retryResult}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Failure overview */}
+        <section className="mb-6 rounded-xl border border-[#252c35] bg-[#11151a] p-4 sm:p-5">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} className="text-amber-400" />
+            <h2 className="text-sm font-semibold">Failure overview</h2>
+          </div>
 
-        {/* Main evidence grid */}
+          <p className="mt-3 break-words text-sm leading-6 text-[#c4cedb]">
+            {failure.errorMessage || "No error message was recorded."}
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 border-t border-[#252c35] pt-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div>
+              <p className="text-[11px] text-[#65758a]">Test case</p>
+              <p className="mt-1 break-words text-xs text-[#dce2ea]">
+                {testCase.title || "Not available"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-[#65758a]">Source file</p>
+              <p className="mt-1 break-all font-mono text-xs text-[#dce2ea]">
+                {sourceFileName || "Not available"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-[#65758a]">Test run</p>
+              <p className="mt-1 break-all font-mono text-xs text-[#dce2ea]">
+                {testRun.id || "Not available"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-[#65758a]">Run status</p>
+              <p className="mt-1 text-xs text-[#dce2ea]">
+                {formatStatus(testRun.status)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-[#65758a]">Failure type</p>
+              <p className="mt-1 text-xs text-[#dce2ea]">
+                {formatStatus(failure.type)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-[#65758a]">Detected at</p>
+              <p className="mt-1 text-xs text-[#dce2ea]">
+                {formatDate(testRun.completedAt || testRun.createdAt)}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Evidence */}
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-
-          {/* Left column */}
           <motion.div
             initial={{ opacity: 0, x: -14 }}
             animate={{ opacity: 1, x: 0 }}
@@ -200,103 +270,104 @@ export default function FailureDetailPage() {
             className="min-w-0 space-y-5"
           >
             <CodePanel title="Failing input" icon={Terminal}>
-              {failure.input}
+              {failure.failingInput}
             </CodePanel>
 
-            <CodePanel title="Expected vs actual" icon={Activity}>
-              <span className="text-[#80e8bf]">expected: </span>
+            <CodePanel title="Expected value" icon={CheckCircle2}>
               {failure.expected}
-              {"\n"}
-              <span className="text-red-400">actual:    </span>
+            </CodePanel>
+
+            <CodePanel title="Actual value" icon={AlertTriangle}>
               {failure.actual}
             </CodePanel>
+
+            {testCase.testCode && (
+              <CodePanel title="Test code" icon={Terminal}>
+                {testCase.testCode}
+              </CodePanel>
+            )}
           </motion.div>
 
-          {/* Right column */}
           <motion.div
             initial={{ opacity: 0, x: 14 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.14 }}
             className="min-w-0 space-y-5"
           >
+            <CodePanel title="Error message" icon={AlertTriangle}>
+              {failure.errorMessage}
+            </CodePanel>
+
             <CodePanel title="Stack trace" icon={Terminal}>
               {failure.stackTrace}
             </CodePanel>
 
-            {/* Related run */}
-            <section>
-              <h2 className="mb-2 text-sm font-semibold text-[#dce2ea]">
-                Related run
-              </h2>
-              <Link
-                to="/dashboard/test-runs"
-                className="inline-flex items-center gap-2 font-mono text-xs text-[#80e8bf] transition-colors hover:text-[#a8f5d4]"
-              >
-                {failure.runId}
-                <Play size={12} />
-              </Link>
-            </section>
+            <CodePanel title="Standard output (stdout)" icon={Terminal}>
+              {failure.stdout}
+            </CodePanel>
 
-            {/* Reproduction attempts */}
-            <section className="rounded-xl border border-[#252c35] bg-[#11151a] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold">
-                  Reproduction attempts
-                </h2>
-                <span className="text-xs text-[#8292aa]">
-                  {failure.successfulReproductions}/{failure.attempts} reproduced
-                </span>
-              </div>
-
-              <div className="mt-4 flex gap-1.5">
-                {Array.from(
-                  { length: failure.attempts },
-                  (_, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: 1 }}
-                      transition={{ delay: 0.2 + index * 0.1 }}
-                      className={`h-2 flex-1 origin-left rounded-full ${
-                        index < failure.successfulReproductions
-                          ? "bg-emerald-400"
-                          : "bg-[#303640]"
-                      }`}
-                    />
-                  )
-                )}
-              </div>
-
-              <p className="mt-3 text-xs leading-6 text-[#8292aa]">
-                {failure.summary}
-              </p>
-            </section>
-
-            {/* Minimization */}
-            <section className="rounded-xl border border-[#252c35] bg-[#11151a] p-4">
-              <h2 className="text-sm font-semibold">
-                Input minimization
-              </h2>
-              <p className="mt-2 text-xs leading-6 text-[#8292aa]">
-                {failure.minimization}
-              </p>
-            </section>
+            <CodePanel title="Standard error (stderr)" icon={Terminal}>
+              {failure.stderr}
+            </CodePanel>
           </motion.div>
         </div>
 
-        {/* Footer information */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#252c35] pt-4 text-[11px] text-[#65758a]"
-        >
-          <span>Project: {failure.project}</span>
-          <span>Detected: {failure.createdAt}</span>
-        </motion.div>
+        {/* Reproduction attempts */}
+        <section className="mt-6 rounded-xl border border-[#252c35] bg-[#11151a] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold">
+              Reproduction attempts
+            </h2>
+            <span className="text-xs text-[#8292aa]">
+              {attempts.length} recorded attempt(s)
+            </span>
+          </div>
 
-        <p className="mt-4 text-xs text-[#65758a]">
-          Demo failure evidence · Retry is simulated and does not execute tests.
+          {attempts.length === 0 ? (
+            <p className="mt-4 text-xs leading-6 text-[#8292aa]">
+              No reproduction attempts have been recorded for this failure.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {attempts.map((attempt) => (
+                <div
+                  key={attempt.id || attempt.attemptNumber}
+                  className="rounded-lg border border-[#252c35] bg-[#101419] p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-[#dce2ea]">
+                      Attempt #{attempt.attemptNumber}
+                    </span>
+                    <span className="text-xs text-[#8292aa]">
+                      {formatStatus(attempt.status)}
+                    </span>
+                  </div>
+
+                  {attempt.errorMessage && (
+                    <p className="mt-2 break-words text-xs leading-5 text-[#8292aa]">
+                      {attempt.errorMessage}
+                    </p>
+                  )}
+
+                  {attempt.stackTrace && (
+                    <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-[#8292aa]">
+                      {attempt.stackTrace}
+                    </pre>
+                  )}
+
+                  {attempt.duration != null && (
+                    <p className="mt-2 text-[11px] text-[#65758a]">
+                      Duration: {attempt.duration} ms
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <p className="mt-5 text-xs text-[#65758a]">
+          Evidence shown here is retrieved from the stored test execution result.
         </p>
       </div>
     </motion.main>
