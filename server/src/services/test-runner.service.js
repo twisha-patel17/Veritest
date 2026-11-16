@@ -41,7 +41,13 @@ const trackedAssert = new Proxy(originalAssert, {
   }
 });
 
-// Only allow the assertion module.
+// Create a CommonJS module environment.
+const userModule = {
+  exports: {},
+};
+
+// Only allow assertion modules and relative imports
+// of the uploaded source module.
 const customRequire = (moduleName) => {
   if (
     moduleName === "node:assert/strict" ||
@@ -52,12 +58,17 @@ const customRequire = (moduleName) => {
     return trackedAssert;
   }
 
-  throw new Error("Module not allowed: " + moduleName);
-};
+  if (
+    typeof moduleName === "string" &&
+    (
+      moduleName.startsWith("./") ||
+      moduleName.startsWith("../")
+    )
+  ) {
+    return userModule.exports;
+  }
 
-// Create a CommonJS module environment.
-const userModule = {
-  exports: {},
+  throw new Error("Module not allowed: " + moduleName);
 };
 
 const sandboxProcess = {
