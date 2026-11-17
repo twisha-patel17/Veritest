@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -32,17 +33,18 @@ model RefreshSession {
 }
 
 model Project {
-  id          String       @id @default(cuid())
-  name        String
-  description String?      @db.Text
-  language    String
-  framework   String?
-  userId      String
-  sourceFiles SourceFile[]
-  testCases   TestCase[]
-  testRuns    TestRun[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String         @id @default(cuid())
+  name          String
+  description   String?        @db.Text
+  language      String
+  framework     String?
+  userId        String
+  sourceFiles   SourceFile[]
+  testCases     TestCase[]
+  testRuns      TestRun[]
+  mutationRuns  MutationRun[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -51,14 +53,15 @@ model Project {
 }
 
 model SourceFile {
-  id        String   @id @default(cuid())
-  projectId String
-  fileName  String
-  filePath  String
-  content   String   @db.Text
-  language  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String         @id @default(cuid())
+  projectId    String
+  fileName     String
+  filePath     String
+  content      String         @db.Text
+  language     String
+  mutationRuns MutationRun[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -78,8 +81,9 @@ model TestCase {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  results TestResult[]
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  results       TestResult[]
+  mutantsKilled Mutant[] @relation("MutantKilledBy")
 
   @@index([projectId])
   @@index([status])
@@ -177,4 +181,70 @@ model ReproductionAttempt {
 
   @@unique([failureId, attemptNumber])
   @@index([failureId])
+}
+
+model MutationRun {
+  id           String   @id @default(cuid())
+  projectId    String
+  sourceFileId String
+
+  status String @default("PENDING")
+
+  totalMutants        Int @default(0)
+  killedMutants       Int @default(0)
+  survivedMutants     Int @default(0)
+  equivalentMutants   Int @default(0)
+  inconclusiveMutants Int @default(0)
+
+  mutationScore Float?
+  duration      Int?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceFile SourceFile @relation(fields: [sourceFileId], references: [id], onDelete: Cascade)
+
+  mutants Mutant[]
+
+  @@index([projectId, createdAt])
+  @@index([sourceFileId])
+  @@index([status])
+}
+
+model Mutant {
+  id            String @id @default(cuid())
+  mutationRunId String
+
+  operator    String
+  description String
+  lineNumber  Int?
+
+  originalCode String @db.Text
+  mutatedCode  String @db.Text
+
+  status String @default("PENDING")
+
+  killedByTestCaseId String?
+  duration           Int?
+
+  errorMessage String? @db.Text
+  stdout       String? @db.Text
+  stderr       String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  mutationRun MutationRun @relation(fields: [mutationRunId], references: [id], onDelete: Cascade)
+
+  killedByTestCase TestCase? @relation(
+    "MutantKilledBy",
+    fields: [killedByTestCaseId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  @@index([mutationRunId])
+  @@index([status])
+  @@index([killedByTestCaseId])
 }
