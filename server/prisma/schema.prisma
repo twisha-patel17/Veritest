@@ -237,12 +237,7 @@ model Mutant {
 
   mutationRun MutationRun @relation(fields: [mutationRunId], references: [id], onDelete: Cascade)
 
-  killedByTestCase TestCase? @relation(
-    "MutantKilledBy",
-    fields: [killedByTestCaseId],
-    references: [id],
-    onDelete: SetNull
-  )
+  killedByTestCase TestCase? @relation("MutantKilledBy", fields: [killedByTestCaseId], references: [id], onDelete: SetNull)
 
   @@index([mutationRunId])
   @@index([status])
