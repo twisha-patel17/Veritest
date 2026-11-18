@@ -12,6 +12,7 @@ const executionRoutes = require("./routes/execution.routes");
 const sourceFileRoutes = require("./routes/sourcefile.routes");
 const aiTestCaseRoutes = require("./routes/ai-testcase.routes");
 const failureRoutes = require("./routes/failure.routes");
+const mutationRoutes = require("./routes/mutation.routes");
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api", testrunRoutes);
 app.use("/api", executionRoutes);
 app.use("/api", aiTestCaseRoutes);
 app.use("/api", failureRoutes);
+app.use("/api", mutationRoutes);
 app.use("/api/projects/:projectId/files", sourceFileRoutes);
 
 app.use(errorMiddleware);
