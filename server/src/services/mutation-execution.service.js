@@ -9,6 +9,7 @@ const { executeTestCase } = require("./test-runner.service");
  * A thrown error or missing exit code is treated as inconclusive,
  * because it may represent an execution-provider problem.
  */
+
 const classifyMutationResult = (result) => {
   if (!result || result.status === "ERROR") {
     return "INCONCLUSIVE";
@@ -18,15 +19,24 @@ const classifyMutationResult = (result) => {
     return "SURVIVED";
   }
 
-  if (
-    result.status === "FAILED" &&
-    Number.isInteger(result.exitCode)
-  ) {
-    return "KILLED";
+  if (result.status === "FAILED") {
+    const failureOutput = [
+      result.errorMessage || "",
+      result.stderr || "",
+    ].join("\n");
+
+    // Only assertion failures count as killed mutants.
+    if (/AssertionError|ERR_ASSERTION/.test(failureOutput)) {
+      return "KILLED";
+    }
+
+    // Runtime and compilation errors are inconclusive.
+    return "INCONCLUSIVE";
   }
 
   return "INCONCLUSIVE";
 };
+
 
 const executeMutationRun = async ({
   mutationRunId,
