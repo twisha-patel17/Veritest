@@ -3,13 +3,13 @@ const prisma = require("../config/prisma");
 const { executeTestCase } = require("./test-runner.service");
 
 /**
- * A returned FAILED result with an exit code represents an actual
- * execution failure of the submitted program.
+ * Classifies the result of executing a baseline-passing test
+ * against a mutated version of the source code.
  *
- * A thrown error or missing exit code is treated as inconclusive,
- * because it may represent an execution-provider problem.
+ * PASSED  -> Mutant survived.
+ * FAILED  -> Mutant was killed.
+ * ERROR   -> Execution was inconclusive.
  */
-
 const classifyMutationResult = (result) => {
   if (!result || result.status === "ERROR") {
     return "INCONCLUSIVE";
@@ -20,23 +20,11 @@ const classifyMutationResult = (result) => {
   }
 
   if (result.status === "FAILED") {
-    const failureOutput = [
-      result.errorMessage || "",
-      result.stderr || "",
-    ].join("\n");
-
-    // Only assertion failures count as killed mutants.
-    if (/AssertionError|ERR_ASSERTION/.test(failureOutput)) {
-      return "KILLED";
-    }
-
-    // Runtime and compilation errors are inconclusive.
-    return "INCONCLUSIVE";
+    return "KILLED";
   }
 
   return "INCONCLUSIVE";
 };
-
 
 const executeMutationRun = async ({
   mutationRunId,
